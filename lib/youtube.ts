@@ -9,7 +9,6 @@ export type VideoMetadata = {
   publishedAt: string;
   duration: number | null;
   viewCount: number | null;
-  likeCount: number | null;
   thumbnail: string;
   artist: string | null;
   album: string | null;
@@ -91,7 +90,6 @@ async function fetchOne(videoId: string): Promise<VideoMetadata | null> {
             ? video.duration
             : null,
         viewCount: video.viewCount ?? null,
-        likeCount: video.likeCount ?? null,
         thumbnail: pickThumbnail([...(video.thumbnails ?? [])]),
         artist: music?.artist ?? null,
         album: music?.album ?? null,

@@ -42,7 +42,6 @@ export async function POST(request: Request) {
       videos,
       notFound,
       invalid,
-      totalRows: rows.length,
       uniqueIds: ids.length,
     });
   } catch (error) {

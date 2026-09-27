@@ -13,7 +13,6 @@ type VideoMetadata = {
   publishedAt: string;
   duration: number | null;
   viewCount: number | null;
-  likeCount: number | null;
   thumbnail: string;
   artist: string | null;
   album: string | null;
@@ -24,7 +23,6 @@ type ApiResult = {
   videos: VideoMetadata[];
   notFound: string[];
   invalid: string[];
-  totalRows: number;
   uniqueIds: number;
 };
 
@@ -35,7 +33,6 @@ type VideoFormatInfo = {
   label: string;
   height: number | null;
   fps: number | null;
-  abr: number | null;
   tbr: number | null;
   sizeBytes: number | null;
   approx: boolean;
