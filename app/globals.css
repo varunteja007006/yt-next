@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #e8edf5;
-  --muted: #8995a8;
-  --line: #263246;
-  --panel: #111a29;
-  --panel-soft: #162235;
-  --canvas: #09111d;
-  --accent: #7dd3fc;
-  --accent-strong: #38bdf8;
+  --ink: #f2e8e8;
+  --muted: #a88f92;
+  --line: #3a242b;
+  --panel: #1b1015;
+  --panel-soft: #2a171e;
+  --canvas: #0f080b;
+  --accent: #ff4d4d;
+  --accent-strong: #ff0000;
   --danger: #fda4af;
   color-scheme: dark;
 }
@@ -47,12 +47,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 }
 .button-primary:hover, .button-outline:hover, .button-secondary:hover, .button-ghost:hover { transform: translateY(-1px); }
 .button-primary:disabled, .button-outline:disabled, .button-secondary:disabled, .button-ghost:disabled { cursor: not-allowed; opacity: .5; transform: none; }
-.button-primary { background: var(--accent-strong); color: #062033; }
+.button-primary { background: var(--accent-strong); color: #fff; }
 .button-primary:hover { background: var(--accent); }
 .button-outline { border-color: var(--line); background: transparent; color: var(--ink); }
-.button-outline:hover { border-color: #49607c; background: var(--panel-soft); }
-.button-secondary { background: #20364c; color: #c6edff; }
-.button-secondary:hover { background: #2a4964; }
+.button-outline:hover { border-color: #74404b; background: var(--panel-soft); }
+.button-secondary { background: #4b1d25; color: #ffd6d6; }
+.button-secondary:hover { background: #66232d; }
 .button-ghost { color: var(--muted); }
 .button-ghost:hover { background: var(--panel-soft); color: var(--ink); }
 .button-default { min-height: 2.25rem; padding: 0 .9rem; }
@@ -61,3 +61,39 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 @media (max-width: 700px) {
   .responsive-table { overflow-x: auto; }
 }
+
+.filter-panel {
+  min-width: min(34rem, calc(100vw - 2rem));
+}
+
+@media (min-width: 701px) {
+  .filter-panel {
+    position: absolute;
+    z-index: 10;
+    top: 100%;
+    right: 0;
+    margin-top: .4rem;
+    padding: .65rem;
+    border: 1px solid var(--line);
+    border-radius: .7rem;
+    background: var(--panel);
+    box-shadow: 0 1rem 2rem rgb(0 0 0 / .25);
+  }
+}
+
+/* Keep the existing utility structure, but give neutral states a warm dark tint. */
+.text-slate-100 { color: #f2e8e8; }
+.text-slate-200 { color: #ead8da; }
+.text-slate-300 { color: #d2b9bd; }
+.text-slate-400 { color: #ad9296; }
+.text-slate-500 { color: #866d73; }
+.text-slate-600 { color: #654c54; }
+.border-slate-700 { border-color: #4b2c35; }
+.border-slate-800 { border-color: #3a242b; }
+.bg-slate-950\/35 { background-color: rgb(18 8 12 / .45); }
+.bg-slate-950\/40 { background-color: rgb(18 8 12 / .55); }
+.bg-slate-950\/70 { background-color: rgb(18 8 12 / .86); }
+.bg-slate-800\/40:hover { background-color: rgb(67 31 40 / .4); }
+.bg-slate-800\/70 { background-color: rgb(67 31 40 / .7); }
+.hover\:bg-slate-800:hover { background-color: #2a171e; }
+.divide-slate-800 > :not(:last-child) { border-color: #3a242b; }

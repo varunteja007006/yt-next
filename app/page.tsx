@@ -8,7 +8,14 @@ import {
   useRef,
   useState,
 } from "react";
-import { ChevronDown, Download, ExternalLink, RotateCw } from "lucide-react";
+import {
+  ChevronDown,
+  Download,
+  ExternalLink,
+  ListFilter,
+  RotateCw,
+  Search,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const STORAGE_KEY = "yt-next:upload";
@@ -197,7 +204,7 @@ function FormatPanel({
                     entry?.status === "done"
                       ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200"
                       : busy
-                        ? "border-sky-400/40 bg-sky-400/10 text-sky-200"
+                        ? "border-red-500/40 bg-red-500/10 text-red-200"
                         : entry?.status === "failed"
                           ? "border-rose-400/40 bg-rose-400/10 text-rose-200 hover:bg-rose-400/20"
                           : "border-slate-700 bg-slate-950/40 text-slate-200 hover:border-slate-500 hover:bg-slate-800"
@@ -240,7 +247,7 @@ function FormatPanel({
                     entry?.status === "done"
                       ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200"
                       : busy
-                        ? "border-sky-400/40 bg-sky-400/10 text-sky-200"
+                         ? "border-red-500/40 bg-red-500/10 text-red-200"
                         : entry?.status === "failed"
                           ? "border-rose-400/40 bg-rose-400/10 text-rose-200 hover:bg-rose-400/20"
                           : "border-slate-700 bg-slate-950/40 text-slate-200 hover:border-slate-500 hover:bg-slate-800"
@@ -563,75 +570,41 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-[#09111d] px-4 py-10 sm:py-16">
-      <main className="w-full max-w-6xl">
-        <div className="mb-2 flex items-start justify-between gap-6">
-            <p className="mb-3 text-xs font-bold uppercase tracking-[0.22em] text-sky-300">
-              Cliproom / local library
-            </p>
-        </div>
-
-        <section className="mb-6 grid gap-px overflow-hidden rounded-2xl border border-slate-800 bg-slate-800 md:grid-cols-3" aria-label="How Cliproom works">
-          <div className="bg-[#111a29] p-5">
-            <p className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-sky-300">01 / Import</p>
-            <h2 className="text-sm font-semibold text-slate-100">Start with a CSV</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-400">
-              Upload a file containing YouTube video IDs. The library is saved locally so you can return to it later.
-            </p>
-          </div>
-          <div className="bg-[#111a29] p-5">
-            <p className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-sky-300">02 / Explore</p>
-            <h2 className="text-sm font-semibold text-slate-100">Search and narrow it down</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-400">
-              Browse titles, channels, duration, views, music metadata, and availability with the filters below.
-            </p>
-          </div>
-          <div className="bg-[#111a29] p-5">
-            <p className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-sky-300">03 / Download</p>
-            <h2 className="text-sm font-semibold text-slate-100">Choose the exact format</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-400">
-              Open Formats on any row to download best quality, audio-only, or a specific resolution and file type.
-            </p>
-          </div>
-        </section>
+    <div className="flex min-h-screen flex-col items-center bg-[#0f080b] px-3 py-5 sm:px-5 sm:py-8">
+      <main className="w-full max-w-7xl">
+        <header className="mb-4 flex items-center justify-between gap-4">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-red-400">
+            Cliproom <span className="text-slate-600">/</span> local library
+          </p>
+          <p className="hidden text-xs text-slate-500 sm:block">CSV in, formats out</p>
+        </header>
 
         <form
           onSubmit={handleSubmit}
-          className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-[#111a29] p-5 shadow-2xl shadow-black/20 sm:p-6"
+          className="grid gap-3 rounded-xl border border-slate-800 bg-[#1b1015] p-3 shadow-xl shadow-black/20 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-4"
         >
-          <div>
-            <p className="text-sm font-semibold text-slate-100">
-              Load a library
-            </p>
-            <p className="mt-1 text-xs text-slate-400">
-              Select a CSV export containing one YouTube video ID per row.
-            </p>
+          <div className="sm:min-w-36">
+            <p className="text-sm font-semibold text-slate-100">Load a library</p>
+            <p className="text-xs text-slate-500">One video ID per CSV row</p>
           </div>
           <input
             ref={fileRef}
             type="file"
             accept=".csv,text/csv"
             onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
-            className="block w-full cursor-pointer rounded-lg border border-dashed border-slate-700 bg-slate-950/40 p-2 text-sm text-slate-400 file:mr-4 file:cursor-pointer file:rounded-md file:border-0 file:bg-sky-400 file:px-3 file:py-2 file:text-xs file:font-bold file:text-slate-950 hover:border-sky-400/60 hover:file:bg-sky-300"
+            className="block min-w-0 w-full cursor-pointer rounded-lg border border-dashed border-slate-700 bg-slate-950/40 p-1.5 text-xs text-slate-400 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-red-500 file:px-2.5 file:py-1.5 file:text-xs file:font-bold file:text-white hover:border-red-400/60 hover:file:bg-red-400"
           />
-          <div className="flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={loading}>
-              {loading ? "Fetching metadata…" : "Fetch metadata"}
+          <div className="flex items-center gap-2 sm:justify-end">
+            <Button type="submit" size="sm" disabled={loading}>
+              {loading ? "Fetching…" : "Fetch metadata"}
             </Button>
-            {fileName && (
-              <span className="max-w-full truncate text-sm text-slate-400">
-                {fileName}
-              </span>
-            )}
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={clearSaved}
-              disabled={loading}
-            >
+            <Button type="button" size="sm" variant="ghost" onClick={clearSaved} disabled={loading}>
               Reset
             </Button>
           </div>
+          {fileName && (
+            <p className="truncate text-xs text-slate-400 sm:col-start-2 sm:-mt-2">Loaded: {fileName}</p>
+          )}
         </form>
 
         {error && (
@@ -641,8 +614,8 @@ export default function Home() {
         )}
 
         {result && (
-          <section className="mt-8">
-            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-400">
+          <section className="mt-5">
+            <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-xs text-slate-400">
               <span>
                 <strong className="text-slate-100">
                   {result.videos.length}
@@ -662,86 +635,47 @@ export default function Home() {
               )}
             </div>
 
-            <div className="mt-5 flex flex-wrap items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/35 p-3">
-              <input
-                type="search"
-                placeholder="Search title, channel, artist…"
-                value={filters.query}
-                onChange={(e) => setFilter("query", e.target.value)}
-                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-400 sm:w-56"
-              />
-              <select
-                value={filters.channel}
-                onChange={(e) => setFilter("channel", e.target.value)}
-                className="h-9 rounded-lg border border-slate-700 bg-slate-950/70 px-2 text-sm text-slate-100 outline-none focus:border-sky-400"
-              >
-                <option value="all">All channels</option>
-                {channels.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={filters.duration}
-                onChange={(e) =>
-                  setFilter("duration", e.target.value as Filters["duration"])
-                }
-                className="h-9 rounded-lg border border-slate-700 bg-slate-950/70 px-2 text-sm text-slate-100 outline-none focus:border-sky-400"
-              >
-                <option value="all">Any duration</option>
-                <option value="short">&lt; 5 min</option>
-                <option value="medium">5 – 20 min</option>
-                <option value="long">&gt; 20 min</option>
-              </select>
-              <input
-                type="number"
-                min={0}
-                placeholder="Min views"
-                value={filters.minViews}
-                onChange={(e) => setFilter("minViews", e.target.value)}
-                className="no-spinner h-9 w-28 rounded-lg border border-slate-700 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-400"
-              />
-              <select
-                value={filters.status}
-                onChange={(e) =>
-                  setFilter("status", e.target.value as Filters["status"])
-                }
-                className="h-9 rounded-lg border border-slate-700 bg-slate-950/70 px-2 text-sm text-slate-100 outline-none focus:border-sky-400"
-              >
-                <option value="all">All status</option>
-                <option value="found">Found only</option>
-                <option value="notFound">Not found only</option>
-              </select>
-              <label className="flex h-9 items-center gap-2 text-sm text-slate-400">
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
+              <label className="relative min-w-0 flex-1 sm:max-w-lg">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
                 <input
-                  type="checkbox"
-                  checked={filters.musicOnly}
-                  onChange={(e) => setFilter("musicOnly", e.target.checked)}
-                  className="size-4 accent-sky-400"
+                  type="search"
+                  aria-label="Search library"
+                  placeholder="Search titles, channels, artists…"
+                  value={filters.query}
+                  onChange={(e) => setFilter("query", e.target.value)}
+                  className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950/70 pl-9 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-red-500"
                 />
-                Music only
               </label>
-              <label className="flex h-9 items-center gap-2 text-sm text-slate-400">
-                <input
-                  type="checkbox"
-                  checked={filters.downloadedOnly}
-                  onChange={(e) =>
-                    setFilter("downloadedOnly", e.target.checked)
-                  }
-                  className="size-4 accent-sky-400"
-                />
-                Downloaded
-                <span className="text-slate-500">({downloadedIds.size})</span>
-              </label>
-              {isFiltered() && (
-                <Button
-                  variant="ghost"
-                  onClick={() => setFilters(DEFAULT_FILTERS)}
-                >
-                  Clear
-                </Button>
-              )}
+              <details className="filter-details group relative">
+                <summary className="inline-flex h-10 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-slate-700 px-3 text-xs font-semibold text-slate-300 hover:border-slate-500 hover:bg-slate-800 [&::-webkit-details-marker]:hidden">
+                  <ListFilter className="size-3.5 text-red-400" />
+                  Filters
+                  {isFiltered() && <span className="rounded-full bg-red-500/15 px-1.5 text-red-200">active</span>}
+                  <ChevronDown className="size-3.5 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="filter-panel mt-2 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-2">
+                  <select value={filters.channel} onChange={(e) => setFilter("channel", e.target.value)} className="h-8 rounded-lg border border-slate-700 bg-slate-950/70 px-2 text-xs text-slate-100 outline-none focus:border-red-500">
+                    <option value="all">All channels</option>
+                    {channels.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <select value={filters.duration} onChange={(e) => setFilter("duration", e.target.value as Filters["duration"])} className="h-8 rounded-lg border border-slate-700 bg-slate-950/70 px-2 text-xs text-slate-100 outline-none focus:border-red-500">
+                    <option value="all">Any duration</option>
+                    <option value="short">&lt; 5 min</option>
+                    <option value="medium">5 – 20 min</option>
+                    <option value="long">&gt; 20 min</option>
+                  </select>
+                  <input type="number" min={0} placeholder="Min views" value={filters.minViews} onChange={(e) => setFilter("minViews", e.target.value)} className="no-spinner h-8 w-24 rounded-lg border border-slate-700 bg-slate-950/70 px-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-red-500" />
+                  <select value={filters.status} onChange={(e) => setFilter("status", e.target.value as Filters["status"])} className="h-8 rounded-lg border border-slate-700 bg-slate-950/70 px-2 text-xs text-slate-100 outline-none focus:border-red-500">
+                    <option value="all">All status</option>
+                    <option value="found">Found only</option>
+                    <option value="notFound">Not found only</option>
+                  </select>
+                  <label className="flex h-8 items-center gap-1.5 text-xs text-slate-400"><input type="checkbox" checked={filters.musicOnly} onChange={(e) => setFilter("musicOnly", e.target.checked)} className="size-3.5 accent-red-500" />Music only</label>
+                  <label className="flex h-8 items-center gap-1.5 text-xs text-slate-400"><input type="checkbox" checked={filters.downloadedOnly} onChange={(e) => setFilter("downloadedOnly", e.target.checked)} className="size-3.5 accent-red-500" />Downloaded <span className="text-slate-500">({downloadedIds.size})</span></label>
+                  {isFiltered() && <Button size="sm" variant="ghost" onClick={() => setFilters(DEFAULT_FILTERS)}>Clear</Button>}
+                </div>
+              </details>
             </div>
 
             <p className="mt-3 text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -749,20 +683,20 @@ export default function Home() {
               {result.videos.length + result.notFound.length}
             </p>
 
-            <div className="responsive-table mt-3 overflow-hidden rounded-2xl border border-slate-800 bg-[#111a29] shadow-xl shadow-black/10">
-              <table className="w-full text-left text-sm">
+            <div className="responsive-table mt-2 overflow-hidden rounded-xl border border-slate-800 bg-[#1b1015] shadow-xl shadow-black/10">
+              <table className="w-full text-left text-xs sm:text-sm">
                 <thead className="bg-slate-950/70 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-4 py-3 font-medium">Video</th>
-                    <th className="px-4 py-3 font-medium">Channel</th>
-                    <th className="px-4 py-3 font-medium">Duration</th>
-                    <th className="px-4 py-3 font-medium">Views</th>
-                    <th className="px-4 py-3 font-medium">Published</th>
-                    <th className="px-4 py-3 font-medium">YouTube</th>
-                    <th className="px-4 py-3 font-medium">Download</th>
+                    <th className="hidden px-3 py-2 font-medium lg:table-cell">Channel</th>
+                    <th className="px-3 py-2 font-medium">Duration</th>
+                    <th className="px-3 py-2 font-medium">Views</th>
+                    <th className="hidden px-3 py-2 font-medium xl:table-cell">Published</th>
+                    <th className="px-3 py-2 font-medium">YouTube</th>
+                    <th className="px-3 py-2 font-medium">Download</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800 bg-[#111a29]">
+                <tbody className="divide-y divide-slate-800 bg-[#1b1015]">
                   {matchedVideos.map((v) => {
                     const entries = registry[v.id] ?? {};
                     const downloadedCount = Object.values(entries).filter(
@@ -782,22 +716,22 @@ export default function Home() {
                               : "hover:bg-slate-800/40"
                           }
                         >
-                          <td className="max-w-md px-4 py-3">
+                          <td className="max-w-md px-3 py-2">
                             <a
                               href={v.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-3 group"
+                               className="group flex items-center gap-2"
                             >
                               {v.thumbnail && (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
                                   src={v.thumbnail}
                                   alt=""
-                                  className="h-9 w-16 shrink-0 rounded object-cover"
+                                   className="h-8 w-14 shrink-0 rounded object-cover"
                                 />
                               )}
-                              <span className="font-medium text-slate-100 group-hover:underline">
+                               <span className="line-clamp-2 font-medium text-slate-100 group-hover:underline">
                                 {v.title}
                                 {v.artist && (
                                   <span className="ml-2 text-xs font-normal text-slate-500">
@@ -808,21 +742,21 @@ export default function Home() {
                               </span>
                             </a>
                           </td>
-                          <td className="px-4 py-3 text-slate-400">
+                          <td className="hidden px-3 py-2 text-slate-400 lg:table-cell">
                             {v.channel || "-"}
                           </td>
-                          <td className="px-4 py-3 tabular-nums text-slate-400">
+                          <td className="px-3 py-2 tabular-nums text-slate-400">
                             {formatDuration(v.duration)}
                           </td>
-                          <td className="px-4 py-3 tabular-nums text-slate-400">
+                          <td className="px-3 py-2 tabular-nums text-slate-400">
                             {formatCount(v.viewCount)}
                           </td>
-                          <td className="px-4 py-3 text-slate-400">
+                          <td className="hidden px-3 py-2 text-slate-400 xl:table-cell">
                             {v.publishedAt
                               ? new Date(v.publishedAt).toLocaleDateString()
                               : "-"}
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-3 py-2">
                             <a
                               href={v.url}
                               target="_blank"
@@ -833,7 +767,7 @@ export default function Home() {
                               <ExternalLink className="size-4" />
                             </a>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-3 py-2">
                             <Button
                               variant="outline"
                               size="sm"
@@ -854,7 +788,7 @@ export default function Home() {
                         </tr>
                         {isExpanded && (
                           <tr className="bg-slate-950/40">
-                            <td colSpan={7} className="px-8 py-4">
+                            <td colSpan={7} className="px-4 py-3 sm:px-6">
                               <FormatPanel
                                 video={v}
                                 formats={formatsByVideo[v.id]}
@@ -871,7 +805,7 @@ export default function Home() {
                   })}
                   {matchedNotFound.map((id) => (
                     <tr key={id} className="bg-amber-400/10">
-                      <td className="px-4 py-3 text-amber-200">
+                      <td className="px-3 py-2 text-amber-200">
                         Not found: <code>{id}</code>
                       </td>
                       <td colSpan={4} />
