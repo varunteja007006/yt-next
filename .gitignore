@@ -45,3 +45,6 @@ next-env.d.ts
 
 # downloaded media
 /downloads/
+
+# sqlite database
+/data/

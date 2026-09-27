@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# yt-next
+
+A local, single-user YouTube library and downloader. The app imports a CSV
+library, fetches metadata, and downloads selected video or audio formats.
+
+This application is intended to run on one machine and is not configured for
+multi-user or public deployment.
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 22.5 or newer, with `node:sqlite` available.
+- [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) on `PATH`.
+- `ffmpeg` on `PATH` for audio extraction and video merging.
+
+### Install and run
+
+Install dependencies with pnpm, then start the development server:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser. Keep the
+server bound to `localhost`; it has no authentication or multi-user isolation.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+For a production build:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+pnpm lint
+pnpm exec tsc --noEmit
+pnpm build
+pnpm start
+```
 
-## Learn More
+## Local Storage
 
-To learn more about Next.js, take a look at the following resources:
+Runtime data is stored beneath the project directory and is intentionally
+gitignored:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `data/yt-next.db` stores the saved CSV library in SQLite.
+- `.cache/` stores fetched metadata caches.
+- `downloads/` stores downloaded media and the download registry.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+These directories must be writable by the user running the server. Deleting
+the SQLite database removes the saved library. Download files are reconciled
+with the registry when the downloads API is accessed.
