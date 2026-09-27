@@ -565,11 +565,35 @@ export default function Home() {
   return (
     <div className="flex min-h-screen flex-col items-center bg-[#09111d] px-4 py-10 sm:py-16">
       <main className="w-full max-w-6xl">
-        <div className="flex items-start justify-between gap-6">
-          <p className="mb-3 text-xs font-bold uppercase tracking-[0.22em] text-sky-300">
-            Cliproom / local library
-          </p>
+        <div className="mb-2 flex items-start justify-between gap-6">
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.22em] text-sky-300">
+              Cliproom / local library
+            </p>
         </div>
+
+        <section className="mb-6 grid gap-px overflow-hidden rounded-2xl border border-slate-800 bg-slate-800 md:grid-cols-3" aria-label="How Cliproom works">
+          <div className="bg-[#111a29] p-5">
+            <p className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-sky-300">01 / Import</p>
+            <h2 className="text-sm font-semibold text-slate-100">Start with a CSV</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Upload a file containing YouTube video IDs. The library is saved locally so you can return to it later.
+            </p>
+          </div>
+          <div className="bg-[#111a29] p-5">
+            <p className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-sky-300">02 / Explore</p>
+            <h2 className="text-sm font-semibold text-slate-100">Search and narrow it down</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Browse titles, channels, duration, views, music metadata, and availability with the filters below.
+            </p>
+          </div>
+          <div className="bg-[#111a29] p-5">
+            <p className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-sky-300">03 / Download</p>
+            <h2 className="text-sm font-semibold text-slate-100">Choose the exact format</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Open Formats on any row to download best quality, audio-only, or a specific resolution and file type.
+            </p>
+          </div>
+        </section>
 
         <form
           onSubmit={handleSubmit}
