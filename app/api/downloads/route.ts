@@ -1,8 +1,8 @@
 import {
   getRegistry,
-  initDownloads,
   removeDownload,
   startDownload,
+  syncRegistry,
   type DownloadMode,
 } from "@/lib/downloads";
 
@@ -15,7 +15,7 @@ const MODES: DownloadMode[] = [
 ];
 
 export async function GET() {
-  await initDownloads();
+  await syncRegistry();
   return Response.json({ downloads: getRegistry() });
 }
 
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  await initDownloads();
+  await syncRegistry();
 
   if (body.action === "remove") {
     if (!body.videoId || !body.formatKey) {

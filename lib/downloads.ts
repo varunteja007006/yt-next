@@ -56,6 +56,99 @@ async function ensureRegistry() {
     console.log(`[downloads] marked ${interrupted} interrupted downloads as failed`);
     saveRegistry();
   }
+
+  await pruneMissing();
+}
+
+// Drop "done" entries whose file no longer exists on disk, so deleting the
+// downloads folder can't leave stale registry entries behind.
+async function pruneMissing() {
+  let pruned = 0;
+  for (const [videoId, entries] of Object.entries(registry)) {
+    for (const [formatKey, entry] of Object.entries(entries)) {
+      if (!entry.file) continue;
+      try {
+        const stat = await fs.stat(entry.file);
+        if (stat.isFile()) continue;
+      } catch {
+        // file missing
+      }
+      delete entries[formatKey];
+      pruned++;
+    }
+    if (Object.keys(entries).length === 0) delete registry[videoId];
+  }
+  if (pruned > 0) {
+    console.log(`[downloads] pruned ${pruned} entries with missing files`);
+    saveRegistry();
+  }
+
+  await adoptOrphans();
+}
+
+// Pick up files on disk that have no registry entry (e.g. after a registry
+// wipe or files added outside the app) so they aren't invisible to the UI.
+async function adoptOrphans() {
+  let dirs: string[];
+  try {
+    dirs = await fs.readdir(DOWNLOADS_DIR);
+  } catch {
+    return;
+  }
+
+  let adopted = 0;
+  for (const videoId of dirs) {
+    if (!/^[\w-]{11}$/.test(videoId)) continue;
+    const dir = path.join(DOWNLOADS_DIR, videoId);
+    let files: string[];
+    try {
+      if (!(await fs.stat(dir)).isDirectory()) continue;
+      files = await fs.readdir(dir);
+    } catch {
+      continue;
+    }
+
+    const known = new Set(
+      Object.values(registry[videoId] ?? {})
+        .map((e) => e.file)
+        .filter((f): f is string => Boolean(f))
+    );
+
+    for (const name of files) {
+      if (name.startsWith(".") || name.endsWith(".part") || name.endsWith(".ytdl")) continue;
+      const full = path.join(dir, name);
+      if (known.has(full)) continue;
+      try {
+        const stat = await fs.stat(full);
+        if (!stat.isFile()) continue;
+        const at = stat.mtime.toISOString();
+        registry[videoId] = {
+          ...registry[videoId],
+          [`file-${name}`]: {
+            formatKey: `file-${name}`,
+            label: "On disk",
+            status: "done",
+            file: full,
+            sizeBytes: stat.size,
+            startedAt: at,
+            finishedAt: at,
+          },
+        };
+        adopted++;
+      } catch {
+        // unreadable file — skip
+      }
+    }
+  }
+  if (adopted > 0) {
+    console.log(`[downloads] adopted ${adopted} untracked files`);
+    saveRegistry();
+  }
+}
+
+export async function syncRegistry() {
+  await ensureRegistry();
+  await pruneMissing();
 }
 
 function saveRegistry() {
