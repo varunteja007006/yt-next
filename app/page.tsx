@@ -455,9 +455,13 @@ export default function Home() {
         setResult(data as ApiResult);
         if (persist) {
           try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ name, csv }));
+            await fetch("/api/library", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name, csv }),
+            });
           } catch {
-            // storage full — non-fatal
+            // persist failure — non-fatal
           }
         }
       }
@@ -482,7 +486,7 @@ export default function Home() {
   }
 
   function clearSaved() {
-    localStorage.removeItem(STORAGE_KEY);
+    fetch("/api/library", { method: "DELETE" }).catch(() => {});
     setResult(null);
     setFileName(null);
     setFilters(DEFAULT_FILTERS);
@@ -491,7 +495,22 @@ export default function Home() {
   }
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
+      // Server-side library (SQLite) — shared across browsers and ports.
+      try {
+        const res = await fetch("/api/library");
+        const data = await res.json();
+        if (data.library?.csv) {
+          const { name, csv } = data.library;
+          setFileName(name ?? "saved library");
+          loadCsv(csv, name, { persist: false, silent: true });
+          return;
+        }
+      } catch {
+        return;
+      }
+
+      // One-time migration from localStorage to the server DB.
       let raw: string | null = null;
       try {
         raw = localStorage.getItem(STORAGE_KEY);
@@ -503,6 +522,12 @@ export default function Home() {
         const { name, csv } = JSON.parse(raw);
         if (typeof csv === "string" && csv.trim()) {
           setFileName(name ?? "saved upload");
+          await fetch("/api/library", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, csv }),
+          }).catch(() => {});
+          localStorage.removeItem(STORAGE_KEY);
           loadCsv(csv, name, { persist: false, silent: true });
         }
       } catch {
