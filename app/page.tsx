@@ -1,6 +1,13 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ChevronDown, Download, ExternalLink, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -71,11 +78,11 @@ function formatSize(bytes: number | null, approx: boolean): string {
 
 function formatFormatSize(
   f: VideoFormatInfo,
-  durationSeconds: number | null
+  durationSeconds: number | null,
 ): string {
   if (f.sizeBytes !== null) return formatSize(f.sizeBytes, f.approx);
   if (f.tbr && durationSeconds)
-    return formatSize((f.tbr * 125 * durationSeconds), true);
+    return formatSize(f.tbr * 125 * durationSeconds, true);
   return "?";
 }
 
@@ -100,12 +107,12 @@ function FormatPanel({
     videoId: string,
     mode: string,
     itag?: string,
-    label?: string
+    label?: string,
   ) => void;
 }) {
   const audioFormats = (formats ?? []).filter((f) => f.kind === "audio");
   const videoFormats = (formats ?? []).filter(
-    (f) => f.kind !== "audio" && (f.height ?? 0) > 0
+    (f) => f.kind !== "audio" && (f.height ?? 0) > 0,
   );
 
   return (
@@ -113,8 +120,18 @@ function FormatPanel({
       <div className="flex flex-wrap items-center gap-2">
         <Button
           size="sm"
-          onClick={() => onDownload(video.id, "video-best", undefined, "Best video (max quality)")}
-          disabled={entries["video-best"]?.status === "done" || entries["video-best"]?.status === "in_progress"}
+          onClick={() =>
+            onDownload(
+              video.id,
+              "video-best",
+              undefined,
+              "Best video (max quality)",
+            )
+          }
+          disabled={
+            entries["video-best"]?.status === "done" ||
+            entries["video-best"]?.status === "in_progress"
+          }
         >
           <Download className="size-3.5" />
           {entries["video-best"]?.status === "done"
@@ -126,8 +143,13 @@ function FormatPanel({
         <Button
           size="sm"
           variant="secondary"
-          onClick={() => onDownload(video.id, "audio-best", undefined, "Best audio")}
-          disabled={entries["audio-best"]?.status === "done" || entries["audio-best"]?.status === "in_progress"}
+          onClick={() =>
+            onDownload(video.id, "audio-best", undefined, "Best audio")
+          }
+          disabled={
+            entries["audio-best"]?.status === "done" ||
+            entries["audio-best"]?.status === "in_progress"
+          }
         >
           <Download className="size-3.5" />
           {entries["audio-best"]?.status === "done"
@@ -136,27 +158,28 @@ function FormatPanel({
               ? "Downloading…"
               : "Best audio"}
         </Button>
-        <span className="text-xs text-zinc-500">
+        <span className="text-xs text-slate-500">
           Saved to <code>downloads/{video.id}/</code>
         </span>
       </div>
 
-      {loading && <p className="text-sm text-zinc-500">Loading formats…</p>}
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {loading && <p className="text-sm text-slate-400">Loading formats…</p>}
+      {error && <p className="text-sm text-rose-300">{error}</p>}
 
       {formats && formats.length === 0 && (
-        <p className="text-sm text-zinc-500">No downloadable formats found.</p>
+        <p className="text-sm text-slate-400">No downloadable formats found.</p>
       )}
 
       {videoFormats.length > 0 && (
         <div>
-          <p className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+          <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">
             Video
           </p>
           <div className="flex flex-wrap gap-1.5">
             {videoFormats.map((f) => {
               const entry = entries[formatKeyFor(f.itag)];
-              const busy = entry?.status === "in_progress" || entry?.status === "queued";
+              const busy =
+                entry?.status === "in_progress" || entry?.status === "queued";
               return (
                 <button
                   key={f.itag}
@@ -166,23 +189,25 @@ function FormatPanel({
                       video.id,
                       f.kind === "muxed" ? "muxed-itag" : "video-only-itag",
                       f.itag,
-                      `${f.label} ${f.ext.toUpperCase()}`
+                      `${f.label} ${f.ext.toUpperCase()}`,
                     )
                   }
                   title={entry?.error}
                   className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors ${
                     entry?.status === "done"
-                      ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-400"
+                      ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200"
                       : busy
-                        ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-400"
+                        ? "border-sky-400/40 bg-sky-400/10 text-sky-200"
                         : entry?.status === "failed"
-                          ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:text-red-400"
-                          : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                          ? "border-rose-400/40 bg-rose-400/10 text-rose-200 hover:bg-rose-400/20"
+                          : "border-slate-700 bg-slate-950/40 text-slate-200 hover:border-slate-500 hover:bg-slate-800"
                   }`}
                 >
-                  {entry?.status === "failed" && <RotateCw className="size-3" />}
+                  {entry?.status === "failed" && (
+                    <RotateCw className="size-3" />
+                  )}
                   <strong>{f.label}</strong>
-                  <span className="text-zinc-500">
+                  <span className="text-slate-500">
                     {f.ext} · {formatFormatSize(f, video.duration)}
                     {f.fps && f.fps > 30 ? ` · ${f.fps}fps` : ""}
                   </span>
@@ -195,13 +220,14 @@ function FormatPanel({
 
       {audioFormats.length > 0 && (
         <div>
-          <p className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+          <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">
             Audio
           </p>
           <div className="flex flex-wrap gap-1.5">
             {audioFormats.map((f) => {
               const entry = entries[formatKeyFor(f.itag)];
-              const busy = entry?.status === "in_progress" || entry?.status === "queued";
+              const busy =
+                entry?.status === "in_progress" || entry?.status === "queued";
               return (
                 <button
                   key={f.itag}
@@ -212,17 +238,19 @@ function FormatPanel({
                   title={entry?.error}
                   className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors ${
                     entry?.status === "done"
-                      ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-400"
+                      ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200"
                       : busy
-                        ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-400"
+                        ? "border-sky-400/40 bg-sky-400/10 text-sky-200"
                         : entry?.status === "failed"
-                          ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:text-red-400"
-                          : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                          ? "border-rose-400/40 bg-rose-400/10 text-rose-200 hover:bg-rose-400/20"
+                          : "border-slate-700 bg-slate-950/40 text-slate-200 hover:border-slate-500 hover:bg-slate-800"
                   }`}
                 >
-                  {entry?.status === "failed" && <RotateCw className="size-3" />}
+                  {entry?.status === "failed" && (
+                    <RotateCw className="size-3" />
+                  )}
                   <strong>{f.label}</strong>
-                  <span className="text-zinc-500">
+                  <span className="text-slate-500">
                     {f.ext} · {formatFormatSize(f, video.duration)}
                   </span>
                 </button>
@@ -266,7 +294,7 @@ function applyFilters(
   videos: VideoMetadata[],
   notFound: string[],
   f: Filters,
-  downloadedIds: Set<string>
+  downloadedIds: Set<string>,
 ) {
   const q = f.query.trim().toLowerCase();
   const minViews = Number(f.minViews) || 0;
@@ -310,19 +338,19 @@ export default function Home() {
     Record<string, VideoFormatInfo[]>
   >({});
   const [formatsLoading, setFormatsLoading] = useState<Record<string, boolean>>(
-    {}
+    {},
   );
-  const [formatsError, setFormatsError] = useState<Record<string, string>>(
-    {}
-  );
+  const [formatsError, setFormatsError] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const channels = useMemo(
     () =>
       result
-        ? [...new Set(result.videos.map((v) => v.channel).filter(Boolean))].sort()
+        ? [
+            ...new Set(result.videos.map((v) => v.channel).filter(Boolean)),
+          ].sort()
         : [],
-    [result]
+    [result],
   );
 
   const downloadedIds = useMemo(
@@ -330,11 +358,11 @@ export default function Home() {
       new Set(
         Object.entries(registry)
           .filter(([, entries]) =>
-            Object.values(entries).some((e) => e.status === "done")
+            Object.values(entries).some((e) => e.status === "done"),
           )
-          .map(([id]) => id)
+          .map(([id]) => id),
       ),
-    [registry]
+    [registry],
   );
 
   const { matchedVideos, matchedNotFound } = useMemo(
@@ -342,7 +370,7 @@ export default function Home() {
       result
         ? applyFilters(result.videos, result.notFound, filters, downloadedIds)
         : { matchedVideos: [], matchedNotFound: [] },
-    [result, filters, downloadedIds]
+    [result, filters, downloadedIds],
   );
 
   function setFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
@@ -406,7 +434,7 @@ export default function Home() {
     videoId: string,
     mode: string,
     itag?: string,
-    label?: string
+    label?: string,
   ) {
     try {
       const res = await fetch("/api/downloads", {
@@ -427,7 +455,7 @@ export default function Home() {
   async function loadCsv(
     csv: string,
     name: string,
-    opts: { persist?: boolean; silent?: boolean } = {}
+    opts: { persist?: boolean; silent?: boolean } = {},
   ) {
     const { persist = true, silent = false } = opts;
     if (loadingRef.current) return;
@@ -535,32 +563,41 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-zinc-50 px-4 py-16 dark:bg-black">
-      <main className="w-full max-w-5xl">
-        <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          YouTube Metadata Viewer
-        </h1>
-        <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-          Upload a CSV of video IDs to fetch and browse their metadata.
-        </p>
+    <div className="flex min-h-screen flex-col items-center bg-[#09111d] px-4 py-10 sm:py-16">
+      <main className="w-full max-w-6xl">
+        <div className="flex items-start justify-between gap-6">
+          <p className="mb-3 text-xs font-bold uppercase tracking-[0.22em] text-sky-300">
+            Cliproom / local library
+          </p>
+        </div>
 
         <form
           onSubmit={handleSubmit}
-          className="mt-8 flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950"
+          className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-[#111a29] p-5 shadow-2xl shadow-black/20 sm:p-6"
         >
+          <div>
+            <p className="text-sm font-semibold text-slate-100">
+              Load a library
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              Select a CSV export containing one YouTube video ID per row.
+            </p>
+          </div>
           <input
             ref={fileRef}
             type="file"
             accept=".csv,text/csv"
             onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
-            className="block w-full cursor-pointer text-sm text-zinc-600 file:mr-4 file:cursor-pointer file:rounded-lg file:border-0 file:bg-zinc-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-zinc-700 dark:text-zinc-400 dark:file:bg-zinc-100 dark:file:text-zinc-900"
+            className="block w-full cursor-pointer rounded-lg border border-dashed border-slate-700 bg-slate-950/40 p-2 text-sm text-slate-400 file:mr-4 file:cursor-pointer file:rounded-md file:border-0 file:bg-sky-400 file:px-3 file:py-2 file:text-xs file:font-bold file:text-slate-950 hover:border-sky-400/60 hover:file:bg-sky-300"
           />
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={loading}>
               {loading ? "Fetching metadata…" : "Fetch metadata"}
             </Button>
             {fileName && (
-              <span className="text-sm text-zinc-500">{fileName}</span>
+              <span className="max-w-full truncate text-sm text-slate-400">
+                {fileName}
+              </span>
             )}
             <Button
               type="button"
@@ -574,45 +611,45 @@ export default function Home() {
         </form>
 
         {error && (
-          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
+          <p className="mt-4 rounded-xl border border-rose-400/30 bg-rose-400/10 p-4 text-sm text-rose-200">
             {error}
           </p>
         )}
 
         {result && (
           <section className="mt-8">
-            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-zinc-600 dark:text-zinc-400">
+            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-400">
               <span>
-                <strong className="text-zinc-900 dark:text-zinc-100">
+                <strong className="text-slate-100">
                   {result.videos.length}
                 </strong>{" "}
                 videos loaded
               </span>
               <span>{result.uniqueIds} unique IDs in CSV</span>
               {result.notFound.length > 0 && (
-                <span className="text-amber-600 dark:text-amber-400">
+                <span className="text-amber-300">
                   {result.notFound.length} not found
                 </span>
               )}
               {result.invalid.length > 0 && (
-                <span className="text-amber-600 dark:text-amber-400">
+                <span className="text-amber-300">
                   {result.invalid.length} invalid IDs skipped
                 </span>
               )}
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-2">
+            <div className="mt-5 flex flex-wrap items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/35 p-3">
               <input
                 type="search"
                 placeholder="Search title, channel, artist…"
                 value={filters.query}
                 onChange={(e) => setFilter("query", e.target.value)}
-                className="h-9 w-56 rounded-lg border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-400 sm:w-56"
               />
               <select
                 value={filters.channel}
                 onChange={(e) => setFilter("channel", e.target.value)}
-                className="h-9 rounded-lg border border-zinc-300 bg-white px-2 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                className="h-9 rounded-lg border border-slate-700 bg-slate-950/70 px-2 text-sm text-slate-100 outline-none focus:border-sky-400"
               >
                 <option value="all">All channels</option>
                 {channels.map((c) => (
@@ -626,7 +663,7 @@ export default function Home() {
                 onChange={(e) =>
                   setFilter("duration", e.target.value as Filters["duration"])
                 }
-                className="h-9 rounded-lg border border-zinc-300 bg-white px-2 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                className="h-9 rounded-lg border border-slate-700 bg-slate-950/70 px-2 text-sm text-slate-100 outline-none focus:border-sky-400"
               >
                 <option value="all">Any duration</option>
                 <option value="short">&lt; 5 min</option>
@@ -639,53 +676,58 @@ export default function Home() {
                 placeholder="Min views"
                 value={filters.minViews}
                 onChange={(e) => setFilter("minViews", e.target.value)}
-                className="h-9 w-28 rounded-lg border border-zinc-300 bg-white px-3 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                className="no-spinner h-9 w-28 rounded-lg border border-slate-700 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-400"
               />
               <select
                 value={filters.status}
                 onChange={(e) =>
                   setFilter("status", e.target.value as Filters["status"])
                 }
-                className="h-9 rounded-lg border border-zinc-300 bg-white px-2 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                className="h-9 rounded-lg border border-slate-700 bg-slate-950/70 px-2 text-sm text-slate-100 outline-none focus:border-sky-400"
               >
                 <option value="all">All status</option>
                 <option value="found">Found only</option>
                 <option value="notFound">Not found only</option>
               </select>
-              <label className="flex h-9 items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+              <label className="flex h-9 items-center gap-2 text-sm text-slate-400">
                 <input
                   type="checkbox"
                   checked={filters.musicOnly}
                   onChange={(e) => setFilter("musicOnly", e.target.checked)}
-                  className="size-4 accent-zinc-900 dark:accent-zinc-100"
+                  className="size-4 accent-sky-400"
                 />
                 Music only
               </label>
-              <label className="flex h-9 items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+              <label className="flex h-9 items-center gap-2 text-sm text-slate-400">
                 <input
                   type="checkbox"
                   checked={filters.downloadedOnly}
-                  onChange={(e) => setFilter("downloadedOnly", e.target.checked)}
-                  className="size-4 accent-zinc-900 dark:accent-zinc-100"
+                  onChange={(e) =>
+                    setFilter("downloadedOnly", e.target.checked)
+                  }
+                  className="size-4 accent-sky-400"
                 />
                 Downloaded
-                <span className="text-zinc-400">({downloadedIds.size})</span>
+                <span className="text-slate-500">({downloadedIds.size})</span>
               </label>
               {isFiltered() && (
-                <Button variant="ghost" onClick={() => setFilters(DEFAULT_FILTERS)}>
+                <Button
+                  variant="ghost"
+                  onClick={() => setFilters(DEFAULT_FILTERS)}
+                >
                   Clear
                 </Button>
               )}
             </div>
 
-            <p className="mt-2 text-sm text-zinc-500">
+            <p className="mt-3 text-xs font-medium uppercase tracking-wide text-slate-500">
               Showing {matchedVideos.length + matchedNotFound.length} of{" "}
               {result.videos.length + result.notFound.length}
             </p>
 
-            <div className="mt-2 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
+            <div className="responsive-table mt-3 overflow-hidden rounded-2xl border border-slate-800 bg-[#111a29] shadow-xl shadow-black/10">
               <table className="w-full text-left text-sm">
-                <thead className="bg-zinc-100 text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-900">
+                <thead className="bg-slate-950/70 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-4 py-3 font-medium">Video</th>
                     <th className="px-4 py-3 font-medium">Channel</th>
@@ -696,14 +738,15 @@ export default function Home() {
                     <th className="px-4 py-3 font-medium">Download</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-200 bg-white dark:divide-zinc-800 dark:bg-zinc-950">
+                <tbody className="divide-y divide-slate-800 bg-[#111a29]">
                   {matchedVideos.map((v) => {
                     const entries = registry[v.id] ?? {};
                     const downloadedCount = Object.values(entries).filter(
-                      (e) => e.status === "done"
+                      (e) => e.status === "done",
                     ).length;
                     const activeCount = Object.values(entries).filter(
-                      (e) => e.status === "queued" || e.status === "in_progress"
+                      (e) =>
+                        e.status === "queued" || e.status === "in_progress",
                     ).length;
                     const isExpanded = expandedId === v.id;
                     return (
@@ -711,8 +754,8 @@ export default function Home() {
                         <tr
                           className={
                             isExpanded
-                              ? "bg-zinc-50 dark:bg-zinc-900"
-                              : "hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                              ? "bg-slate-800/70"
+                              : "hover:bg-slate-800/40"
                           }
                         >
                           <td className="max-w-md px-4 py-3">
@@ -730,10 +773,10 @@ export default function Home() {
                                   className="h-9 w-16 shrink-0 rounded object-cover"
                                 />
                               )}
-                              <span className="font-medium text-zinc-900 group-hover:underline dark:text-zinc-100">
+                              <span className="font-medium text-slate-100 group-hover:underline">
                                 {v.title}
                                 {v.artist && (
-                                  <span className="ml-2 text-xs font-normal text-zinc-500 dark:text-zinc-400">
+                                  <span className="ml-2 text-xs font-normal text-slate-500">
                                     {v.artist}
                                     {v.album ? ` — ${v.album}` : ""}
                                   </span>
@@ -741,16 +784,16 @@ export default function Home() {
                               </span>
                             </a>
                           </td>
-                          <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                          <td className="px-4 py-3 text-slate-400">
                             {v.channel || "-"}
                           </td>
-                          <td className="px-4 py-3 tabular-nums text-zinc-600 dark:text-zinc-400">
+                          <td className="px-4 py-3 tabular-nums text-slate-400">
                             {formatDuration(v.duration)}
                           </td>
-                          <td className="px-4 py-3 tabular-nums text-zinc-600 dark:text-zinc-400">
+                          <td className="px-4 py-3 tabular-nums text-slate-400">
                             {formatCount(v.viewCount)}
                           </td>
-                          <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                          <td className="px-4 py-3 text-slate-400">
                             {v.publishedAt
                               ? new Date(v.publishedAt).toLocaleDateString()
                               : "-"}
@@ -761,7 +804,7 @@ export default function Home() {
                               target="_blank"
                               rel="noopener noreferrer"
                               title="Open on YouTube"
-                              className="inline-flex text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                              className="inline-flex text-slate-500 hover:text-slate-100"
                             >
                               <ExternalLink className="size-4" />
                             </a>
@@ -777,7 +820,7 @@ export default function Home() {
                               />
                               Formats
                               {downloadedCount > 0 && (
-                                <span className="ml-1 rounded-full bg-emerald-100 px-1.5 text-xs text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400">
+                                <span className="ml-1 rounded-full bg-emerald-400/15 px-1.5 text-xs text-emerald-200">
                                   {downloadedCount}
                                   {activeCount > 0 ? ` +${activeCount}↓` : ""}
                                 </span>
@@ -786,7 +829,7 @@ export default function Home() {
                           </td>
                         </tr>
                         {isExpanded && (
-                          <tr className="bg-zinc-50 dark:bg-zinc-900/60">
+                          <tr className="bg-slate-950/40">
                             <td colSpan={7} className="px-8 py-4">
                               <FormatPanel
                                 video={v}
@@ -803,8 +846,8 @@ export default function Home() {
                     );
                   })}
                   {matchedNotFound.map((id) => (
-                    <tr key={id} className="bg-amber-50 dark:bg-amber-950/30">
-                      <td className="px-4 py-3 text-amber-700 dark:text-amber-400">
+                    <tr key={id} className="bg-amber-400/10">
+                      <td className="px-4 py-3 text-amber-200">
                         Not found: <code>{id}</code>
                       </td>
                       <td colSpan={4} />
