@@ -9,20 +9,20 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "lucide-react": "^1.61.0",
+    "lucide-react": "1.61.0",
     "next": "16.4.3",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "youtubei": "^1.8.17"
+    "youtubei": "1.8.17"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^24",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9.39.5",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "24.19.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "9.39.5",
     "eslint-config-next": "16.4.3",
-    "tailwindcss": "^4",
-    "typescript": "^5.9.3"
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3"
   }
 }
