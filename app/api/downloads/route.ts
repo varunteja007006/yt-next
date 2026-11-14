@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     videoId?: string;
     mode?: DownloadMode;
     itag?: string;
+    label?: string;
     action?: string;
     formatKey?: string;
     items?: Array<{
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
     return Response.json({ results, downloads: getRegistry() });
   }
 
-  const { videoId, mode, itag } = body;
+  const { videoId, mode, itag, label } = body;
   if (!videoId || !/^[\w-]{11}$/.test(videoId)) {
     return Response.json({ error: "Invalid videoId" }, { status: 400 });
   }
@@ -110,7 +111,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await startDownload({ videoId, mode, itag });
+    const result = await startDownload({ videoId, mode, itag, label });
     return Response.json({ ...result, downloads: getRegistry() });
   } catch (error) {
     const message =

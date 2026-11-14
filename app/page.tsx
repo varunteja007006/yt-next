@@ -15,9 +15,13 @@ import {
   ExternalLink,
   ListFilter,
   Music,
+  Play,
+  RotateCcw,
   RotateCw,
   Search,
+  Trash2,
   Video,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { resolveBestFormat } from "@/lib/best-format";
@@ -61,6 +65,8 @@ type DownloadEntry = {
   formatKey: string;
   label: string;
   status: "queued" | "in_progress" | "done" | "failed";
+  mode?: string;
+  itag?: string;
   file?: string;
   sizeBytes?: number;
   error?: string;
@@ -371,6 +377,11 @@ export default function Home() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batchLoading, setBatchLoading] = useState(false);
+  const [removingKey, setRemovingKey] = useState<string | null>(null);
+  const [playing, setPlaying] = useState<{
+    videoId: string;
+    formatKey: string;
+  } | null>(null);
   const headerCheckboxRef = useRef<HTMLInputElement>(null);
 
   const channels = useMemo(
@@ -510,6 +521,63 @@ export default function Home() {
       }
     } catch {
       // entry stays queued in registry via polling
+    }
+  }
+
+  async function removeDownloadEntry(videoId: string, formatKey: string) {
+    const key = `${videoId}:${formatKey}`;
+    if (removingKey) return;
+    setRemovingKey(key);
+    try {
+      const res = await fetch("/api/downloads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "remove", videoId, formatKey }),
+      });
+      const data = await res.json();
+      if (res.ok && data.downloads) setRegistry(data.downloads);
+    } catch {
+      // registry catches up via polling
+    } finally {
+      setRemovingKey(null);
+    }
+  }
+
+  async function redownloadEntry(videoId: string, entry: DownloadEntry) {
+    if (!entry.mode || removingKey) return;
+    const key = `${videoId}:${entry.formatKey}`;
+    setRemovingKey(key);
+    try {
+      const removeRes = await fetch("/api/downloads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "remove",
+          videoId,
+          formatKey: entry.formatKey,
+        }),
+      });
+      const removeData = await removeRes.json();
+      if (removeRes.ok && removeData.downloads)
+        setRegistry(removeData.downloads);
+
+      const startRes = await fetch("/api/downloads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoId,
+          mode: entry.mode,
+          itag: entry.itag,
+          label: entry.label,
+        }),
+      });
+      const startData = await startRes.json();
+      if (startRes.ok && startData.downloads)
+        setRegistry(startData.downloads);
+    } catch {
+      // registry catches up via polling
+    } finally {
+      setRemovingKey(null);
     }
   }
 
@@ -799,6 +867,12 @@ export default function Home() {
                         e.status === "queued" || e.status === "in_progress",
                     );
                     const isExpanded = expandedId === v.id;
+                    const playingEntry =
+                      playing?.videoId === v.id
+                        ? doneEntries.find(
+                            (e) => e.formatKey === playing.formatKey,
+                          )
+                        : undefined;
                     return (
                       <Fragment key={v.id}>
                         <tr
@@ -853,6 +927,54 @@ export default function Home() {
                                   >
                                     <Check className="size-2.5" />
                                     {e.label}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setPlaying(
+                                          playing?.videoId === v.id &&
+                                            playing.formatKey === e.formatKey
+                                            ? null
+                                            : {
+                                                videoId: v.id,
+                                                formatKey: e.formatKey,
+                                              },
+                                        )
+                                      }
+                                      title="Play"
+                                      aria-label={`Play ${e.label}`}
+                                      className="text-emerald-300 hover:text-emerald-100"
+                                    >
+                                      <Play className="size-2.5" />
+                                    </button>
+                                    {e.mode && (
+                                      <button
+                                        type="button"
+                                        onClick={() => redownloadEntry(v.id, e)}
+                                        disabled={
+                                          removingKey ===
+                                          `${v.id}:${e.formatKey}`
+                                        }
+                                        title="Redownload"
+                                        aria-label={`Redownload ${e.label}`}
+                                        className="text-emerald-300 hover:text-emerald-100 disabled:opacity-50"
+                                      >
+                                        <RotateCcw className="size-2.5" />
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        removeDownloadEntry(v.id, e.formatKey)
+                                      }
+                                      disabled={
+                                        removingKey === `${v.id}:${e.formatKey}`
+                                      }
+                                      title="Delete"
+                                      aria-label={`Delete ${e.label}`}
+                                      className="text-emerald-300 hover:text-rose-300 disabled:opacity-50"
+                                    >
+                                      <Trash2 className="size-2.5" />
+                                    </button>
                                   </span>
                                 ))}
                                 {activeEntries.map((e) => (
@@ -864,6 +986,38 @@ export default function Home() {
                                     {e.label}
                                   </span>
                                 ))}
+                              </div>
+                            )}
+                            {playingEntry && (
+                              <div className="mt-1.5 flex items-center gap-1.5">
+                                {/\.(m4a|mp3|opus|ogg|weba)$/i.test(
+                                  playingEntry.file ?? "",
+                                ) ? (
+                                  <audio
+                                    key={playingEntry.formatKey}
+                                    controls
+                                    autoPlay
+                                    src={`/api/downloads/file?videoId=${v.id}&formatKey=${encodeURIComponent(playingEntry.formatKey)}`}
+                                    className="h-8 w-full max-w-md"
+                                  />
+                                ) : (
+                                  <video
+                                    key={playingEntry.formatKey}
+                                    controls
+                                    autoPlay
+                                    src={`/api/downloads/file?videoId=${v.id}&formatKey=${encodeURIComponent(playingEntry.formatKey)}`}
+                                    className="w-full max-w-md rounded-lg"
+                                  />
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setPlaying(null)}
+                                  title="Close player"
+                                  aria-label="Close player"
+                                  className="text-slate-500 hover:text-slate-100"
+                                >
+                                  <X className="size-3.5" />
+                                </button>
                               </div>
                             )}
                           </td>

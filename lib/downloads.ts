@@ -11,6 +11,10 @@ export type DownloadEntry = {
   formatKey: string;
   label: string;
   status: DownloadStatus;
+  // What was actually started (best modes are stored post-resolution).
+  // Optional so entries persisted before these fields existed still load.
+  mode?: DownloadMode;
+  itag?: string;
   file?: string;
   sizeBytes?: number;
   error?: string;
@@ -27,7 +31,7 @@ export type DownloadMode =
   | "video-only-itag"
   | "muxed-itag";
 
-const DOWNLOADS_DIR = path.join(process.cwd(), "downloads");
+export const DOWNLOADS_DIR = path.join(process.cwd(), "downloads");
 const REGISTRY_FILE = path.join(process.cwd(), ".cache", "downloads.json");
 
 let registry: DownloadRegistry = {};
@@ -320,6 +324,8 @@ export async function startDownload(opts: {
   const entry: DownloadEntry = {
     formatKey,
     label,
+    mode,
+    itag,
     status: "queued",
     startedAt: new Date().toISOString(),
   };
