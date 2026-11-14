@@ -31,7 +31,6 @@ import type { DownloadEntry, DownloadRegistry } from "@/lib/downloads";
 import type { VideoFormatInfo } from "@/lib/formats";
 
 const STORAGE_KEY = "yt-next:upload";
-const FONT_SCALE_KEY = "yt-next:font-scale";
 const FONT_SCALE_MIN = 0.75;
 const FONT_SCALE_MAX = 1.5;
 const FONT_SCALE_STEP = 0.125;
@@ -373,6 +372,7 @@ export default function Home() {
     formatKey: string;
   } | null>(null);
   const [fontScale, setFontScale] = useState(FONT_SCALE_DEFAULT);
+  const fontScaleLoadedRef = useRef(false);
   const headerCheckboxRef = useRef<HTMLInputElement>(null);
 
   const channels = useMemo(
@@ -735,29 +735,34 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // Apply after mount only — initial render uses the default to avoid a
+    // Load after mount only — initial render uses the default to avoid a
     // hydration mismatch from the stored value.
     const timer = setTimeout(() => {
-      let raw: string | null = null;
-      try {
-        raw = localStorage.getItem(FONT_SCALE_KEY);
-      } catch {
-        return;
-      }
-      if (!raw) return;
-      const parsed = Number(raw);
-      if (Number.isFinite(parsed)) setFontScale(clampFontScale(parsed));
+      fetch("/api/settings")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { fontScale?: number | null } | null) => {
+          if (data && typeof data.fontScale === "number" && Number.isFinite(data.fontScale)) {
+            setFontScale(clampFontScale(data.fontScale));
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          fontScaleLoadedRef.current = true;
+        });
     }, 0);
     return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
     document.documentElement.style.fontSize = `${16 * fontScale}px`;
-    try {
-      localStorage.setItem(FONT_SCALE_KEY, String(fontScale));
-    } catch {
-      // storage unavailable — scale still applies for this session
-    }
+    // Skip until the initial load attempt resolves so we don't clobber the
+    // saved value with the default before it is read.
+    if (!fontScaleLoadedRef.current) return;
+    fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fontScale }),
+    }).catch(() => {});
   }, [fontScale]);
 
   function changeFontScale(delta: number) {
