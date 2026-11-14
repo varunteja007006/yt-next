@@ -11,6 +11,7 @@
 | `workflow-guide-2026-09-27.md`         |         100% |
 | `setup-guide-2026-09-27.md`            |         100% |
 | `dedup-and-format-subtitle-2026-11-14.md` |        100% |
+| `multi-select-batch-download-2026-11-14.md` |      100% |
 
 ## My personal thoughts
 

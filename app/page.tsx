@@ -14,8 +14,10 @@ import {
   Download,
   ExternalLink,
   ListFilter,
+  Music,
   RotateCw,
   Search,
+  Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { resolveBestFormat } from "@/lib/best-format";
@@ -367,6 +369,9 @@ export default function Home() {
   );
   const [formatsError, setFormatsError] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [batchLoading, setBatchLoading] = useState(false);
+  const headerCheckboxRef = useRef<HTMLInputElement>(null);
 
   const channels = useMemo(
     () =>
@@ -404,6 +409,37 @@ export default function Home() {
 
   function isFiltered() {
     return JSON.stringify(filters) !== JSON.stringify(DEFAULT_FILTERS);
+  }
+
+  const allSelected =
+    matchedVideos.length > 0 && matchedVideos.every((v) => selected.has(v.id));
+  const someSelected = matchedVideos.some((v) => selected.has(v.id));
+
+  useEffect(() => {
+    if (headerCheckboxRef.current) {
+      headerCheckboxRef.current.indeterminate = someSelected && !allSelected;
+    }
+  }, [someSelected, allSelected]);
+
+  function toggleSelect(videoId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(videoId)) next.delete(videoId);
+      else next.add(videoId);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        matchedVideos.forEach((v) => next.delete(v.id));
+      } else {
+        matchedVideos.forEach((v) => next.add(v.id));
+      }
+      return next;
+    });
   }
 
   const refreshDownloads = useCallback(async () => {
@@ -477,6 +513,31 @@ export default function Home() {
     }
   }
 
+  async function requestBatchDownload(mode: "video-best" | "audio-best") {
+    if (selected.size === 0 || batchLoading) return;
+    setBatchLoading(true);
+    try {
+      const res = await fetch("/api/downloads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: [...selected].map((videoId) => ({ videoId, mode })),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.downloads) setRegistry(data.downloads);
+        setSelected(new Set());
+      } else {
+        setError(data?.error ?? `Request failed (${res.status})`);
+      }
+    } catch {
+      setError("Something went wrong. Check your connection and try again.");
+    } finally {
+      setBatchLoading(false);
+    }
+  }
+
   async function loadCsv(
     csv: string,
     name: string,
@@ -490,6 +551,7 @@ export default function Home() {
       setError(null);
       setResult(null);
       setFilters(DEFAULT_FILTERS);
+      setSelected(new Set());
     }
 
     try {
@@ -541,6 +603,7 @@ export default function Home() {
     setFileName(null);
     setFilters(DEFAULT_FILTERS);
     setError(null);
+    setSelected(new Set());
     if (fileRef.current) fileRef.current.value = "";
   }
 
@@ -705,6 +768,16 @@ export default function Home() {
               <table className="w-full text-left text-xs sm:text-sm">
                 <thead className="bg-slate-950/70 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
+                    <th className="w-8 px-3 py-2">
+                      <input
+                        ref={headerCheckboxRef}
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleSelectAll}
+                        aria-label="Select all filtered videos"
+                        className="size-3.5 accent-red-500"
+                      />
+                    </th>
                     <th className="px-4 py-3 font-medium">Video</th>
                     <th className="hidden px-3 py-2 font-medium lg:table-cell">Channel</th>
                     <th className="px-3 py-2 font-medium">Duration</th>
@@ -735,6 +808,15 @@ export default function Home() {
                               : "hover:bg-slate-800/40"
                           }
                         >
+                          <td className="px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={selected.has(v.id)}
+                              onChange={() => toggleSelect(v.id)}
+                              aria-label={`Select ${v.title}`}
+                              className="size-3.5 accent-red-500"
+                            />
+                          </td>
                           <td className="max-w-md px-3 py-2">
                             <a
                               href={v.url}
@@ -825,7 +907,7 @@ export default function Home() {
                         </tr>
                         {isExpanded && (
                           <tr className="bg-slate-950/40">
-                            <td colSpan={7} className="px-4 py-3 sm:px-6">
+                            <td colSpan={8} className="px-4 py-3 sm:px-6">
                               <FormatPanel
                                 video={v}
                                 formats={formatsByVideo[v.id]}
@@ -845,13 +927,46 @@ export default function Home() {
                       <td className="px-3 py-2 text-amber-200">
                         Not found: <code>{id}</code>
                       </td>
-                      <td colSpan={4} />
+                      <td colSpan={5} />
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </section>
+        )}
+
+        {result && selected.size > 0 && (
+          <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-2.5 py-1.5 shadow-lg backdrop-blur">
+            <span className="text-xs font-semibold text-red-200">
+              {selected.size} selected
+            </span>
+            <Button
+              size="sm"
+              onClick={() => requestBatchDownload("video-best")}
+              disabled={batchLoading}
+            >
+              <Video className="size-3.5" />
+              Download best video
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => requestBatchDownload("audio-best")}
+              disabled={batchLoading}
+            >
+              <Music className="size-3.5" />
+              Download best audio
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setSelected(new Set())}
+              disabled={batchLoading}
+            >
+              Clear
+            </Button>
+          </div>
         )}
       </main>
     </div>

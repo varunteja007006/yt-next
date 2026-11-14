@@ -3,6 +3,7 @@ import {
   removeDownload,
   startDownload,
   syncRegistry,
+  type DownloadEntry,
   type DownloadMode,
 } from "@/lib/downloads";
 
@@ -26,6 +27,12 @@ export async function POST(request: Request) {
     itag?: string;
     action?: string;
     formatKey?: string;
+    items?: Array<{
+      videoId?: string;
+      mode?: DownloadMode;
+      itag?: string;
+      label?: string;
+    }>;
   };
   try {
     body = await request.json();
@@ -44,6 +51,51 @@ export async function POST(request: Request) {
     }
     await removeDownload(body.videoId, body.formatKey);
     return Response.json({ downloads: getRegistry() });
+  }
+
+  // Batch mode: enqueue one download per item. Per-item validation failures
+  // and start errors are reported individually instead of aborting the batch.
+  if (body.items !== undefined) {
+    if (!Array.isArray(body.items) || body.items.length === 0) {
+      return Response.json(
+        { error: "items must be a non-empty array" },
+        { status: 400 }
+      );
+    }
+    const results: Array<{
+      videoId: string;
+      skipped?: boolean;
+      entry?: DownloadEntry;
+      error?: string;
+    }> = [];
+    for (const item of body.items) {
+      const { videoId, mode, itag, label } = item ?? {};
+      if (!videoId || !/^[\w-]{11}$/.test(videoId)) {
+        results.push({ videoId: videoId ?? "", error: "Invalid videoId" });
+        continue;
+      }
+      if (!mode || !MODES.includes(mode)) {
+        results.push({ videoId, error: "Invalid mode" });
+        continue;
+      }
+      if (mode.endsWith("-itag") && !itag) {
+        results.push({ videoId, error: "itag required for this mode" });
+        continue;
+      }
+      try {
+        const result = await startDownload({ videoId, mode, itag, label });
+        results.push({ videoId, ...result });
+      } catch (error) {
+        results.push({
+          videoId,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to start download",
+        });
+      }
+    }
+    return Response.json({ results, downloads: getRegistry() });
   }
 
   const { videoId, mode, itag } = body;
