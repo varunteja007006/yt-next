@@ -38,6 +38,10 @@ function getDb(): DatabaseSync {
       value TEXT NOT NULL,
       fetched_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `);
   return db;
 }
@@ -140,6 +144,22 @@ export function getCache(key: string): { value: string; fetchedAt: string } | un
     .get(key) as { value: string; fetched_at: string } | undefined;
   if (!row) return undefined;
   return { value: row.value, fetchedAt: row.fetched_at };
+}
+
+export function getSetting(key: string): string | undefined {
+  const row = getDb()
+    .prepare("SELECT value FROM settings WHERE key = ?")
+    .get(key) as { value: string } | undefined;
+  return row?.value;
+}
+
+export function setSetting(key: string, value: string): void {
+  getDb()
+    .prepare(
+      `INSERT INTO settings (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+    )
+    .run(key, value);
 }
 
 export function setCache(key: string, value: string, fetchedAt?: string): void {
