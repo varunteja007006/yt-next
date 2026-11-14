@@ -1146,6 +1146,53 @@ export default function Home() {
                 ` (${(result.videos.length + result.notFound.length).toLocaleString()} loaded)`}
             </p>
 
+            {(pageCount > 1 || totalItems > PAGE_SIZE_OPTIONS[0]) && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {pageCount > 1 && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage <= 1}
+                    >
+                      Prev
+                    </Button>
+                    <span className="text-xs text-slate-400">
+                      Page {currentPage.toLocaleString()} of {pageCount.toLocaleString()}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                      disabled={currentPage >= pageCount}
+                    >
+                      Next
+                    </Button>
+                  </>
+                )}
+                {totalItems > PAGE_SIZE_OPTIONS[0] && (
+                  <label className="ml-auto flex items-center gap-1.5 text-xs text-slate-400">
+                    Rows per page
+                    <select
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setPage(1);
+                      }}
+                      className="h-8 rounded-lg border border-slate-700 bg-slate-950/70 px-2 text-xs text-slate-100 outline-none focus:border-red-500"
+                    >
+                      {PAGE_SIZE_OPTIONS.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </div>
+            )}
+
             <div className="responsive-table mt-2 overflow-hidden rounded-xl border border-slate-800 bg-[#1b1015] shadow-xl shadow-black/10">
               <table className="w-full text-left text-xs sm:text-sm">
                 <thead className="bg-slate-950/70 text-xs uppercase tracking-wide text-slate-500">
@@ -1494,53 +1541,6 @@ export default function Home() {
                 </tbody>
               </table>
             </div>
-
-            {(pageCount > 1 || totalItems > PAGE_SIZE_OPTIONS[0]) && (
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {pageCount > 1 && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={currentPage <= 1}
-                    >
-                      Prev
-                    </Button>
-                    <span className="text-xs text-slate-400">
-                      Page {currentPage.toLocaleString()} of {pageCount.toLocaleString()}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                      disabled={currentPage >= pageCount}
-                    >
-                      Next
-                    </Button>
-                  </>
-                )}
-                {totalItems > PAGE_SIZE_OPTIONS[0] && (
-                  <label className="ml-auto flex items-center gap-1.5 text-xs text-slate-400">
-                    Rows per page
-                    <select
-                      value={pageSize}
-                      onChange={(e) => {
-                        setPageSize(Number(e.target.value));
-                        setPage(1);
-                      }}
-                      className="h-8 rounded-lg border border-slate-700 bg-slate-950/70 px-2 text-xs text-slate-100 outline-none focus:border-red-500"
-                    >
-                      {PAGE_SIZE_OPTIONS.map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-              </div>
-            )}
           </section>
         )}
 

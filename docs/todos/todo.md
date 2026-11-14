@@ -21,6 +21,7 @@
 | `delete-library-row-2026-11-14.md` |             100% |
 | `table-pagination-2026-11-14.md` |                 100% |
 | `row-loading-states-2026-11-14.md` |              100% |
+| `pagination-controls-above-table-2026-11-14.md` | 100% |
 
 ## My personal thoughts
 
