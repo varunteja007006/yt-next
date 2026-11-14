@@ -13,6 +13,7 @@
 | `dedup-and-format-subtitle-2026-11-14.md` |        100% |
 | `multi-select-batch-download-2026-11-14.md` |      100% |
 | `play-and-redownload-2026-11-14.md` |              100% |
+| `navbar-font-size-controls-2026-11-14.md` |        100% |
 
 ## My personal thoughts
 

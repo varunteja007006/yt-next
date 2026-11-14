@@ -9,6 +9,8 @@ import {
   useState,
 } from "react";
 import {
+  AArrowDown,
+  AArrowUp,
   Check,
   ChevronDown,
   Download,
@@ -27,6 +29,17 @@ import { Button } from "@/components/ui/button";
 import { resolveBestFormat } from "@/lib/best-format";
 
 const STORAGE_KEY = "yt-next:upload";
+const FONT_SCALE_KEY = "yt-next:font-scale";
+const FONT_SCALE_MIN = 0.75;
+const FONT_SCALE_MAX = 1.5;
+const FONT_SCALE_STEP = 0.125;
+const FONT_SCALE_DEFAULT = 1;
+
+function clampFontScale(value: number): number {
+  const steps = Math.round(value / FONT_SCALE_STEP);
+  const snapped = steps * FONT_SCALE_STEP;
+  return Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, snapped));
+}
 
 type VideoMetadata = {
   id: string;
@@ -382,6 +395,7 @@ export default function Home() {
     videoId: string;
     formatKey: string;
   } | null>(null);
+  const [fontScale, setFontScale] = useState(FONT_SCALE_DEFAULT);
   const headerCheckboxRef = useRef<HTMLInputElement>(null);
 
   const channels = useMemo(
@@ -718,6 +732,36 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    // Apply after mount only — initial render uses the default to avoid a
+    // hydration mismatch from the stored value.
+    const timer = setTimeout(() => {
+      let raw: string | null = null;
+      try {
+        raw = localStorage.getItem(FONT_SCALE_KEY);
+      } catch {
+        return;
+      }
+      if (!raw) return;
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) setFontScale(clampFontScale(parsed));
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${16 * fontScale}px`;
+    try {
+      localStorage.setItem(FONT_SCALE_KEY, String(fontScale));
+    } catch {
+      // storage unavailable — scale still applies for this session
+    }
+  }, [fontScale]);
+
+  function changeFontScale(delta: number) {
+    setFontScale((scale) => clampFontScale(scale + delta));
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center bg-[#0f080b] px-3 py-5 sm:px-5 sm:py-8">
       <main className="w-full max-w-7xl">
@@ -726,6 +770,38 @@ export default function Home() {
             Cliproom <span className="text-slate-600">/</span> local library
           </p>
           <p className="hidden text-xs text-slate-500 sm:block">CSV in, formats out</p>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              title="Decrease font size"
+              aria-label="Decrease font size"
+              onClick={() => changeFontScale(-FONT_SCALE_STEP)}
+              disabled={fontScale <= FONT_SCALE_MIN}
+            >
+              <AArrowDown className="size-3.5" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              title="Reset font size"
+              aria-label="Reset font size"
+              onClick={() => setFontScale(FONT_SCALE_DEFAULT)}
+              disabled={fontScale === FONT_SCALE_DEFAULT}
+            >
+              <RotateCcw className="size-3.5" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              title="Increase font size"
+              aria-label="Increase font size"
+              onClick={() => changeFontScale(FONT_SCALE_STEP)}
+              disabled={fontScale >= FONT_SCALE_MAX}
+            >
+              <AArrowUp className="size-3.5" />
+            </Button>
+          </div>
         </header>
 
         <form
