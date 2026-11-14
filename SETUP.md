@@ -98,8 +98,8 @@ isolation.
 The app creates these directories automatically and they are intentionally
 gitignored:
 
-- `data/yt-next.db`: saved CSV library in SQLite.
-- `.cache/`: cached metadata, format information, and download registry.
+- `data/yt-next.db`: saved CSV library, download registry, and metadata/format
+  caches in SQLite.
 - `downloads/`: downloaded media files.
 
 The user running the server must have write access to the project directory.

@@ -1,6 +1,6 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
 import { Client } from "youtubei";
+
+import { getCache, setCache } from "./db";
 
 export type VideoMetadata = {
   id: string;
@@ -22,42 +22,19 @@ export type MetadataResult = {
 
 const CONCURRENCY = 4;
 const MAX_ATTEMPTS = 3;
-const CACHE_DIR = path.join(process.cwd(), ".cache");
-const CACHE_FILE = path.join(CACHE_DIR, "metadata.json");
 
 const client = new Client();
-const cache = new Map<string, VideoMetadata | null>();
-let cacheLoaded = false;
-let saveQueued = false;
 
-async function loadCache() {
-  if (cacheLoaded) return;
-  cacheLoaded = true;
+// Metadata is cached per video under `metadata:<videoId>`. The JSON payload is
+// the VideoMetadata or literal `null` (negative caching for missing videos).
+function getCachedMetadata(videoId: string): VideoMetadata | null | undefined {
+  const row = getCache(`metadata:${videoId}`);
+  if (!row) return undefined;
   try {
-    const raw = await fs.readFile(CACHE_FILE, "utf-8");
-    const entries = JSON.parse(raw) as [string, VideoMetadata | null][];
-    for (const [id, meta] of entries) cache.set(id, meta);
-    console.log(`[metadata] cache loaded: ${entries.length} entries from ${CACHE_FILE}`);
+    return JSON.parse(row.value) as VideoMetadata | null;
   } catch {
-    console.log("[metadata] cache empty, starting fresh");
+    return undefined;
   }
-}
-
-function queueSave() {
-  if (saveQueued) return;
-  saveQueued = true;
-  setTimeout(async () => {
-    saveQueued = false;
-    try {
-      await fs.mkdir(CACHE_DIR, { recursive: true });
-      const tmp = CACHE_FILE + ".tmp";
-      await fs.writeFile(tmp, JSON.stringify([...cache]));
-      await fs.rename(tmp, CACHE_FILE);
-      console.log(`[metadata] cache saved: ${cache.size} entries`);
-    } catch (error) {
-      console.error("Failed to persist metadata cache:", error);
-    }
-  }, 2000);
 }
 
 function sleep(ms: number) {
@@ -147,15 +124,13 @@ async function runPool(ids: string[]): Promise<Map<string, VideoMetadata | null>
 export async function fetchMetadata(
   videoIds: string[]
 ): Promise<MetadataResult> {
-  await loadCache();
-
   const videos: VideoMetadata[] = [];
   const notFound: string[] = [];
   const pending: string[] = [];
 
   for (const id of videoIds) {
-    if (cache.has(id)) {
-      const cached = cache.get(id);
+    const cached = getCachedMetadata(id);
+    if (cached !== undefined) {
       if (cached) videos.push(cached);
       else notFound.push(id);
     } else {
@@ -164,18 +139,17 @@ export async function fetchMetadata(
   }
 
   if (pending.length > 0) {
+    const hits = videoIds.length - pending.length;
     console.log(
-      `[metadata] request: ${videoIds.length} ids, ${cache.size > 0 ? videoIds.length - pending.length + " cache hits, " : ""}${pending.length} to fetch`
+      `[metadata] request: ${videoIds.length} ids, ${hits > 0 ? `${hits} cache hits, ` : ""}${pending.length} to fetch`
     );
     const fetched = await runPool(pending);
 
     for (const [id, meta] of fetched) {
-      cache.set(id, meta);
+      setCache(`metadata:${id}`, JSON.stringify(meta));
       if (meta) videos.push(meta);
       else notFound.push(id);
     }
-
-    queueSave();
   }
 
   const order = new Map(videoIds.map((id, i) => [id, i]));

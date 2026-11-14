@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
-import { promises as fs } from "node:fs";
-import path from "node:path";
+
+import { getCache, setCache } from "./db";
 
 export type VideoFormatInfo = {
   itag: string;
@@ -30,30 +30,21 @@ type RawFormat = {
   filesize_approx?: number;
 };
 
-const CACHE_FILE = path.join(process.cwd(), ".cache", "formats.json");
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-type FormatsCache = Record<
-  string,
-  { fetchedAt: string; formats: VideoFormatInfo[] }
->;
+type FormatsCacheEntry = {
+  fetchedAt: string;
+  formats: VideoFormatInfo[];
+};
 
-let cache: FormatsCache | null = null;
-
-async function loadCache() {
-  if (cache) return;
+function getCachedFormats(videoId: string): FormatsCacheEntry | undefined {
+  const row = getCache(`formats:${videoId}`);
+  if (!row) return undefined;
   try {
-    cache = JSON.parse(await fs.readFile(CACHE_FILE, "utf-8"));
+    return JSON.parse(row.value) as FormatsCacheEntry;
   } catch {
-    cache = {};
+    return undefined;
   }
-}
-
-function saveCache() {
-  if (!cache) return;
-  fs.mkdir(path.dirname(CACHE_FILE), { recursive: true })
-    .then(() => fs.writeFile(CACHE_FILE, JSON.stringify(cache)))
-    .catch((e) => console.error("[formats] failed to save cache:", e));
 }
 
 function buildFormats(raw: RawFormat[]): VideoFormatInfo[] {
@@ -106,9 +97,7 @@ export async function getFormats(
   videoId: string,
   refresh = false
 ): Promise<{ formats: VideoFormatInfo[] }> {
-  await loadCache();
-
-  const cached = cache![videoId];
+  const cached = getCachedFormats(videoId);
   if (
     !refresh &&
     cached &&
@@ -136,8 +125,8 @@ export async function getFormats(
   const info = JSON.parse(stdout) as { formats?: RawFormat[] };
   const formats = buildFormats(info.formats ?? []);
 
-  cache![videoId] = { fetchedAt: new Date().toISOString(), formats };
-  saveCache();
+  const fetchedAt = new Date().toISOString();
+  setCache(`formats:${videoId}`, JSON.stringify({ fetchedAt, formats }), fetchedAt);
 
   return { formats };
 }

@@ -39,9 +39,9 @@ pnpm start
 Runtime data is stored beneath the project directory and is intentionally
 gitignored:
 
-- `data/yt-next.db` stores the saved CSV library in SQLite.
-- `.cache/` stores fetched metadata caches.
-- `downloads/` stores downloaded media and the download registry.
+- `data/yt-next.db` stores the saved CSV library, the download registry, and
+  the metadata/format caches in SQLite.
+- `downloads/` stores downloaded media.
 
 These directories must be writable by the user running the server. Deleting
 the SQLite database removes the saved library. Download files are reconciled

@@ -4,6 +4,12 @@ import path from "node:path";
 
 import { getFormats } from "./formats";
 import { resolveBestFormat } from "./best-format";
+import {
+  countDownloadEntries,
+  deleteDownloadEntry,
+  getAllDownloadEntries,
+  upsertDownloadEntry,
+} from "./db";
 
 export type DownloadStatus = "queued" | "in_progress" | "done" | "failed";
 
@@ -32,39 +38,123 @@ export type DownloadMode =
   | "muxed-itag";
 
 export const DOWNLOADS_DIR = path.join(process.cwd(), "downloads");
-const REGISTRY_FILE = path.join(process.cwd(), ".cache", "downloads.json");
+// Pre-SQLite registry location. Only read once for migration, never written.
+const LEGACY_REGISTRY_FILE = path.join(process.cwd(), ".cache", "downloads.json");
 
-let registry: DownloadRegistry = {};
+const registry: DownloadRegistry = {};
 let registryLoaded = false;
-let saveQueued = false;
+
+function entryToRow(videoId: string, entry: DownloadEntry) {
+  return {
+    video_id: videoId,
+    format_key: entry.formatKey,
+    label: entry.label,
+    status: entry.status,
+    mode: entry.mode ?? null,
+    itag: entry.itag ?? null,
+    file: entry.file ?? null,
+    size_bytes: entry.sizeBytes ?? null,
+    error: entry.error ?? null,
+    started_at: entry.startedAt,
+    finished_at: entry.finishedAt ?? null,
+  };
+}
+
+function rowToEntry(row: {
+  format_key: string;
+  label: string;
+  status: string;
+  mode: string | null;
+  itag: string | null;
+  file: string | null;
+  size_bytes: number | null;
+  error: string | null;
+  started_at: string;
+  finished_at: string | null;
+}): DownloadEntry {
+  return {
+    formatKey: row.format_key,
+    label: row.label,
+    status: row.status as DownloadStatus,
+    mode: row.mode === null ? undefined : (row.mode as DownloadEntry["mode"]),
+    itag: row.itag ?? undefined,
+    file: row.file ?? undefined,
+    sizeBytes: row.size_bytes ?? undefined,
+    error: row.error ?? undefined,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at ?? undefined,
+  };
+}
+
+// Write-through: the in-memory registry stays the hot cache, every mutation
+// is persisted to SQLite as it happens.
+function persistEntry(videoId: string, entry: DownloadEntry) {
+  upsertDownloadEntry(entryToRow(videoId, entry));
+}
 
 async function ensureRegistry() {
   if (registryLoaded) return;
   registryLoaded = true;
-  try {
-    registry = JSON.parse(await fs.readFile(REGISTRY_FILE, "utf-8"));
-  } catch {
-    registry = {};
-  }
+
+  loadRegistryFromDb();
+  await migrateLegacyRegistryFile();
 
   // Any non-terminal entries belong to a dead process — mark them failed.
   let interrupted = 0;
-  for (const entries of Object.values(registry)) {
+  for (const [videoId, entries] of Object.entries(registry)) {
     for (const entry of Object.values(entries)) {
       if (entry.status === "queued" || entry.status === "in_progress") {
         entry.status = "failed";
         entry.error = "Interrupted by server restart";
         entry.finishedAt = new Date().toISOString();
+        persistEntry(videoId, entry);
         interrupted++;
       }
     }
   }
   if (interrupted > 0) {
     console.log(`[downloads] marked ${interrupted} interrupted downloads as failed`);
-    saveRegistry();
   }
 
   await pruneMissing();
+}
+
+function loadRegistryFromDb() {
+  for (const row of getAllDownloadEntries()) {
+    const entry = rowToEntry(row);
+    registry[row.video_id] = { ...registry[row.video_id], [entry.formatKey]: entry };
+  }
+}
+
+// One-time import of the pre-SQLite JSON registry: only when the legacy file
+// exists AND the DB table is empty. The file is renamed (not deleted) after a
+// successful import; if the DB already has entries the file is left untouched.
+async function migrateLegacyRegistryFile() {
+  if (countDownloadEntries() > 0) return;
+  let raw: string;
+  try {
+    raw = await fs.readFile(LEGACY_REGISTRY_FILE, "utf-8");
+  } catch {
+    return;
+  }
+  let legacy: DownloadRegistry;
+  try {
+    legacy = JSON.parse(raw) as DownloadRegistry;
+  } catch (error) {
+    console.error("[downloads] failed to parse legacy downloads.json, leaving it in place:", error);
+    return;
+  }
+
+  let imported = 0;
+  for (const [videoId, entries] of Object.entries(legacy)) {
+    for (const entry of Object.values(entries)) {
+      registry[videoId] = { ...registry[videoId], [entry.formatKey]: entry };
+      persistEntry(videoId, entry);
+      imported++;
+    }
+  }
+  await fs.rename(LEGACY_REGISTRY_FILE, `${LEGACY_REGISTRY_FILE}.imported`).catch(() => {});
+  console.log(`[downloads] migrated ${imported} entries from legacy downloads.json into SQLite`);
 }
 
 // Drop "done" entries whose file no longer exists on disk, so deleting the
@@ -81,13 +171,13 @@ async function pruneMissing() {
         // file missing
       }
       delete entries[formatKey];
+      deleteDownloadEntry(videoId, formatKey);
       pruned++;
     }
     if (Object.keys(entries).length === 0) delete registry[videoId];
   }
   if (pruned > 0) {
     console.log(`[downloads] pruned ${pruned} entries with missing files`);
-    saveRegistry();
   }
 
   await adoptOrphans();
@@ -129,18 +219,17 @@ async function adoptOrphans() {
         const stat = await fs.stat(full);
         if (!stat.isFile()) continue;
         const at = stat.mtime.toISOString();
-        registry[videoId] = {
-          ...registry[videoId],
-          [`file-${name}`]: {
-            formatKey: `file-${name}`,
-            label: "On disk",
-            status: "done",
-            file: full,
-            sizeBytes: stat.size,
-            startedAt: at,
-            finishedAt: at,
-          },
+        const entry: DownloadEntry = {
+          formatKey: `file-${name}`,
+          label: "On disk",
+          status: "done",
+          file: full,
+          sizeBytes: stat.size,
+          startedAt: at,
+          finishedAt: at,
         };
+        registry[videoId] = { ...registry[videoId], [entry.formatKey]: entry };
+        persistEntry(videoId, entry);
         adopted++;
       } catch {
         // unreadable file — skip
@@ -149,27 +238,12 @@ async function adoptOrphans() {
   }
   if (adopted > 0) {
     console.log(`[downloads] adopted ${adopted} untracked files`);
-    saveRegistry();
   }
 }
 
 export async function syncRegistry() {
   await ensureRegistry();
   await pruneMissing();
-}
-
-function saveRegistry() {
-  if (saveQueued) return;
-  saveQueued = true;
-  setTimeout(async () => {
-    saveQueued = false;
-    try {
-      await fs.mkdir(path.dirname(REGISTRY_FILE), { recursive: true });
-      await fs.writeFile(REGISTRY_FILE, JSON.stringify(registry, null, 2));
-    } catch (error) {
-      console.error("[downloads] failed to save registry:", error);
-    }
-  }, 500);
 }
 
 async function runYtDlp(args: string[]): Promise<string> {
@@ -299,11 +373,10 @@ export async function startDownload(opts: {
         const legacy = registry[videoId]?.[legacyKey];
         if (legacy && !registry[videoId]?.[formatKey]) {
           delete registry[videoId][legacyKey];
-          registry[videoId] = {
-            ...registry[videoId],
-            [formatKey]: { ...legacy, formatKey },
-          };
-          saveRegistry();
+          deleteDownloadEntry(videoId, legacyKey);
+          const rekeyed = { ...legacy, formatKey };
+          registry[videoId] = { ...registry[videoId], [formatKey]: rekeyed };
+          persistEntry(videoId, rekeyed);
         }
       }
     } catch (error) {
@@ -331,13 +404,13 @@ export async function startDownload(opts: {
   };
 
   registry[videoId] = { ...registry[videoId], [formatKey]: entry };
-  saveRegistry();
+  persistEntry(videoId, entry);
 
   queue.push(async () => {
     const current = registry[videoId]?.[formatKey];
     if (!current || current.status === "done") return;
     current.status = "in_progress";
-    saveRegistry();
+    persistEntry(videoId, current);
 
     try {
       await fs.mkdir(path.join(DOWNLOADS_DIR, videoId), { recursive: true });
@@ -361,7 +434,7 @@ export async function startDownload(opts: {
       current.finishedAt = new Date().toISOString();
       console.error(`[downloads] failed ${videoId} ${formatKey}:`, current.error);
     }
-    saveRegistry();
+    persistEntry(videoId, current);
   });
 
   drain().catch((e) => console.error("[downloads] queue error:", e));
@@ -379,5 +452,5 @@ export async function removeDownload(videoId: string, formatKey: string) {
     delete registry[videoId][formatKey];
     if (Object.keys(registry[videoId]).length === 0) delete registry[videoId];
   }
-  saveRegistry();
+  deleteDownloadEntry(videoId, formatKey);
 }

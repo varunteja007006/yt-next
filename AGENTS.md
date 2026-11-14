@@ -22,8 +22,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - This is a single-package Next App Router application, not a monorepo.
 - `app/page.tsx` contains the client UI and upload/filter/download interactions.
 - `app/api/*/route.ts` contains metadata, format, download, and saved-library endpoints.
-- `lib/youtube.ts` fetches and caches metadata; `lib/formats.ts` invokes `yt-dlp` for format data; `lib/downloads.ts` owns the local download queue and registry; `lib/db.ts` owns the SQLite library record.
-- Runtime state and storage are local to one Node process/machine: `.cache/`, `data/`, and `downloads/` are intentionally gitignored.
+- `lib/youtube.ts` fetches and caches metadata; `lib/formats.ts` invokes `yt-dlp` for format data; `lib/downloads.ts` owns the local download queue and registry; `lib/db.ts` owns the SQLite store (library record, download registry, and metadata/format caches).
+- Runtime state and storage are local to one Node process/machine: all persistence lives in `data/yt-next.db` (SQLite) plus downloaded files under `downloads/`; both are intentionally gitignored. The legacy `.cache/` JSON files are only read once for migration of the download registry, never written.
 - The app is intended for local, single-user use. Keep it bound to `localhost`; it has no authentication or multi-user isolation.
 - Download and format features require `yt-dlp`; audio extraction and video merging may require `ffmpeg`. The SQLite implementation requires a Node runtime that provides `node:sqlite`.
 
