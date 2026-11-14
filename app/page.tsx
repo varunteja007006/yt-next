@@ -16,6 +16,7 @@ import {
   Download,
   ExternalLink,
   ListFilter,
+  Loader2,
   Music,
   Play,
   RotateCcw,
@@ -99,12 +100,20 @@ function formatKeyFor(itag: string): string {
   return `itag-${itag}`;
 }
 
+// Client-side key for a download request that is still in flight, before
+// the registry poll reflects it. itag requests key on the itag; best modes
+// key on the mode because the server resolves the itag.
+function downloadKey(videoId: string, mode: string, itag?: string): string {
+  return itag ? `${videoId}:itag-${itag}` : `${videoId}:${mode}`;
+}
+
 function FormatPanel({
   video,
   formats,
   loading,
   error,
   entries,
+  pending,
   onDownload,
 }: {
   video: VideoMetadata;
@@ -112,6 +121,7 @@ function FormatPanel({
   loading: boolean;
   error?: string;
   entries: Record<string, DownloadEntry>;
+  pending: Set<string>;
   onDownload: (
     videoId: string,
     mode: string,
@@ -138,6 +148,8 @@ function FormatPanel({
   };
   const bestVideoEntry = bestEntry("video-best");
   const bestAudioEntry = bestEntry("audio-best");
+  const bestVideoPending = pending.has(`${video.id}:video-best`);
+  const bestAudioPending = pending.has(`${video.id}:audio-best`);
 
   return (
     <div className="flex flex-col gap-4">
@@ -154,15 +166,22 @@ function FormatPanel({
           }
           disabled={
             bestVideoEntry?.status === "done" ||
-            bestVideoEntry?.status === "in_progress"
+            bestVideoEntry?.status === "in_progress" ||
+            bestVideoPending
           }
         >
-          <Download className="size-3.5" />
+          {bestVideoPending ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Download className="size-3.5" />
+          )}
           {bestVideoEntry?.status === "done"
             ? `Video ✓ ${formatSize(bestVideoEntry.sizeBytes ?? null, false)}`
-            : bestVideoEntry
-              ? "Downloading…"
-              : "Best video (max)"}
+            : bestVideoPending
+              ? "Starting…"
+              : bestVideoEntry
+                ? "Downloading…"
+                : "Best video (max)"}
         </Button>
         <Button
           size="sm"
@@ -172,22 +191,55 @@ function FormatPanel({
           }
           disabled={
             bestAudioEntry?.status === "done" ||
-            bestAudioEntry?.status === "in_progress"
+            bestAudioEntry?.status === "in_progress" ||
+            bestAudioPending
           }
         >
-          <Download className="size-3.5" />
+          {bestAudioPending ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Download className="size-3.5" />
+          )}
           {bestAudioEntry?.status === "done"
             ? `Audio ✓ ${formatSize(bestAudioEntry.sizeBytes ?? null, false)}`
-            : bestAudioEntry
-              ? "Downloading…"
-              : "Best audio"}
+            : bestAudioPending
+              ? "Starting…"
+              : bestAudioEntry
+                ? "Downloading…"
+                : "Best audio"}
         </Button>
         <span className="text-xs text-slate-500">
           Saved to <code>downloads/{video.id}/</code>
         </span>
       </div>
 
-      {loading && <p className="text-sm text-slate-400">Loading formats…</p>}
+      {loading && (
+        <div className="flex flex-col gap-4">
+          {[0, 1].map((group) => (
+            <div key={group}>
+              <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+                {group === 0 ? "Video" : "Audio"}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {Array.from({ length: group === 0 ? 4 : 3 }, (_, i) => (
+                  <div
+                    key={i}
+                    className={`h-6 animate-pulse rounded-lg bg-slate-800 ${
+                      group === 0
+                        ? i % 2
+                          ? "w-20"
+                          : "w-24"
+                        : i % 2
+                          ? "w-16"
+                          : "w-20"
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {error && <p className="text-sm text-rose-300">{error}</p>}
 
       {formats && formats.length === 0 && (
@@ -202,8 +254,13 @@ function FormatPanel({
           <div className="flex flex-wrap gap-1.5">
             {videoFormats.map((f) => {
               const entry = entries[formatKeyFor(f.itag)];
+              const pendingDownload = pending.has(
+                downloadKey(video.id, "", f.itag),
+              );
               const busy =
-                entry?.status === "in_progress" || entry?.status === "queued";
+                pendingDownload ||
+                entry?.status === "in_progress" ||
+                entry?.status === "queued";
               return (
                 <button
                   key={f.itag}
@@ -227,9 +284,12 @@ function FormatPanel({
                           : "border-slate-700 bg-slate-950/40 text-slate-200 hover:border-slate-500 hover:bg-slate-800"
                   }`}
                 >
-                  {entry?.status === "failed" && (
-                    <RotateCw className="size-3" />
-                  )}
+                  {entry?.status === "failed" &&
+                    (pendingDownload ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <RotateCw className="size-3" />
+                    ))}
                   <strong>{f.label}</strong>
                   <span className="text-slate-500">
                     {f.ext} · {formatFormatSize(f, video.duration)}
@@ -250,8 +310,13 @@ function FormatPanel({
           <div className="flex flex-wrap gap-1.5">
             {audioFormats.map((f) => {
               const entry = entries[formatKeyFor(f.itag)];
+              const pendingDownload = pending.has(
+                downloadKey(video.id, "", f.itag),
+              );
               const busy =
-                entry?.status === "in_progress" || entry?.status === "queued";
+                pendingDownload ||
+                entry?.status === "in_progress" ||
+                entry?.status === "queued";
               return (
                 <button
                   key={f.itag}
@@ -270,9 +335,12 @@ function FormatPanel({
                           : "border-slate-700 bg-slate-950/40 text-slate-200 hover:border-slate-500 hover:bg-slate-800"
                   }`}
                 >
-                  {entry?.status === "failed" && (
-                    <RotateCw className="size-3" />
-                  )}
+                  {entry?.status === "failed" &&
+                    (pendingDownload ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <RotateCw className="size-3" />
+                    ))}
                   <strong>{f.label}</strong>
                   <span className="text-slate-500">
                     {f.ext} · {formatFormatSize(f, video.duration)}
@@ -371,6 +439,9 @@ export default function Home() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batchLoading, setBatchLoading] = useState(false);
+  const [pendingDownloads, setPendingDownloads] = useState<Set<string>>(
+    new Set(),
+  );
   const [removingKey, setRemovingKey] = useState<string | null>(null);
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
   const [playing, setPlaying] = useState<{
@@ -380,6 +451,7 @@ export default function Home() {
   const [fontScale, setFontScale] = useState(FONT_SCALE_DEFAULT);
   const fontScaleLoadedRef = useRef(false);
   const headerCheckboxRef = useRef<HTMLInputElement>(null);
+  const pendingRef = useRef<Set<string>>(new Set());
 
   const channels = useMemo(
     () =>
@@ -529,6 +601,10 @@ export default function Home() {
     itag?: string,
     label?: string,
   ) {
+    const key = downloadKey(videoId, mode, itag);
+    if (pendingRef.current.has(key)) return;
+    pendingRef.current.add(key);
+    setPendingDownloads((prev) => new Set(prev).add(key));
     try {
       const res = await fetch("/api/downloads", {
         method: "POST",
@@ -542,6 +618,13 @@ export default function Home() {
       }
     } catch {
       // entry stays queued in registry via polling
+    } finally {
+      pendingRef.current.delete(key);
+      setPendingDownloads((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
     }
   }
 
@@ -907,7 +990,14 @@ export default function Home() {
           />
           <div className="flex items-center gap-2 sm:justify-end">
             <Button type="submit" size="sm" disabled={loading}>
-              {loading ? "Fetching…" : "Fetch metadata"}
+              {loading ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Fetching…
+                </>
+              ) : (
+                "Fetch metadata"
+              )}
             </Button>
             <Button type="button" size="sm" variant="ghost" onClick={clearSaved} disabled={loading}>
               Reset
@@ -925,6 +1015,62 @@ export default function Home() {
           <p className="mt-4 rounded-xl border border-rose-400/30 bg-rose-400/10 p-4 text-sm text-rose-200">
             {error}
           </p>
+        )}
+
+        {loading && !result && (
+          <section className="mt-5">
+            <div className="responsive-table mt-2 overflow-hidden rounded-xl border border-slate-800 bg-[#1b1015] shadow-xl shadow-black/10">
+              <table className="w-full text-left text-xs sm:text-sm">
+                <thead className="bg-slate-950/70 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="w-8 px-3 py-2">
+                      <span className="sr-only">Select</span>
+                    </th>
+                    <th className="px-4 py-3 font-medium">Video</th>
+                    <th className="hidden px-3 py-2 font-medium lg:table-cell">Channel</th>
+                    <th className="px-3 py-2 font-medium">Duration</th>
+                    <th className="px-3 py-2 font-medium">Views</th>
+                    <th className="hidden px-3 py-2 font-medium xl:table-cell">Published</th>
+                    <th className="px-3 py-2 font-medium">YouTube</th>
+                    <th className="px-3 py-2 font-medium">Download</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800 bg-[#1b1015]">
+                  {Array.from({ length: 6 }, (_, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-2">
+                        <div className="size-3.5 animate-pulse rounded bg-slate-800" />
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-14 shrink-0 animate-pulse rounded bg-slate-800" />
+                          <div className="h-3 w-2/5 animate-pulse rounded bg-slate-800" />
+                        </div>
+                      </td>
+                      <td className="hidden px-3 py-2 lg:table-cell">
+                        <div className="h-3 w-24 animate-pulse rounded bg-slate-800" />
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="h-3 w-12 animate-pulse rounded bg-slate-800" />
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="h-3 w-10 animate-pulse rounded bg-slate-800" />
+                      </td>
+                      <td className="hidden px-3 py-2 xl:table-cell">
+                        <div className="h-3 w-20 animate-pulse rounded bg-slate-800" />
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="size-4 animate-pulse rounded bg-slate-800" />
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="h-7 w-24 animate-pulse rounded-lg bg-slate-800" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         )}
 
         {result && (
@@ -1034,6 +1180,9 @@ export default function Home() {
                       (e) =>
                         e.status === "queued" || e.status === "in_progress",
                     );
+                    const failedEntries = allEntries.filter(
+                      (e) => e.status === "failed",
+                    );
                     const isExpanded = expandedId === v.id;
                     const playingEntry =
                       playing?.videoId === v.id
@@ -1084,9 +1233,8 @@ export default function Home() {
                                 )}
                               </span>
                             </a>
-                            {(doneEntries.length > 0 ||
-                              activeEntries.length > 0) && (
-                              <div className="mt-1 flex flex-wrap items-center gap-1">
+                            {allEntries.length > 0 && (
+                              <div className="mt-1 flex min-h-[1.25rem] flex-wrap items-center gap-1">
                                 {doneEntries.map((e) => (
                                   <span
                                     key={e.formatKey}
@@ -1126,7 +1274,12 @@ export default function Home() {
                                         aria-label={`Redownload ${e.label}`}
                                         className="text-emerald-300 hover:text-emerald-100 disabled:opacity-50"
                                       >
-                                        <RotateCcw className="size-2.5" />
+                                        {removingKey ===
+                                        `${v.id}:${e.formatKey}` ? (
+                                          <Loader2 className="size-2.5 animate-spin" />
+                                        ) : (
+                                          <RotateCcw className="size-2.5" />
+                                        )}
                                       </button>
                                     )}
                                     <button
@@ -1141,7 +1294,12 @@ export default function Home() {
                                       aria-label={`Delete ${e.label}`}
                                       className="text-emerald-300 hover:text-rose-300 disabled:opacity-50"
                                     >
-                                      <Trash2 className="size-2.5" />
+                                      {removingKey ===
+                                      `${v.id}:${e.formatKey}` ? (
+                                        <Loader2 className="size-2.5 animate-spin" />
+                                      ) : (
+                                        <Trash2 className="size-2.5" />
+                                      )}
                                     </button>
                                   </span>
                                 ))}
@@ -1154,6 +1312,52 @@ export default function Home() {
                                     {e.label}
                                   </span>
                                 ))}
+                                {failedEntries.map((e) => {
+                                  const key = `${v.id}:${e.formatKey}`;
+                                  const removing = removingKey === key;
+                                  return (
+                                    <span
+                                      key={e.formatKey}
+                                      title={e.error}
+                                      className="inline-flex items-center gap-0.5 rounded bg-rose-400/10 px-1.5 py-px text-[10px] text-rose-300"
+                                    >
+                                      <RotateCw className="size-2.5" />
+                                      {e.label}
+                                      {e.mode && (
+                                        <button
+                                          type="button"
+                                          onClick={() => redownloadEntry(v.id, e)}
+                                          disabled={removing}
+                                          title="Retry"
+                                          aria-label={`Retry ${e.label}`}
+                                          className="text-rose-300 hover:text-rose-100 disabled:opacity-50"
+                                        >
+                                          {removing ? (
+                                            <Loader2 className="size-2.5 animate-spin" />
+                                          ) : (
+                                            <RotateCcw className="size-2.5" />
+                                          )}
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          removeDownloadEntry(v.id, e.formatKey)
+                                        }
+                                        disabled={removing}
+                                        title="Delete"
+                                        aria-label={`Delete ${e.label}`}
+                                        className="text-rose-300 hover:text-rose-100 disabled:opacity-50"
+                                      >
+                                        {removing ? (
+                                          <Loader2 className="size-2.5 animate-spin" />
+                                        ) : (
+                                          <Trash2 className="size-2.5" />
+                                        )}
+                                      </button>
+                                    </span>
+                                  );
+                                })}
                               </div>
                             )}
                             {playingEntry && (
@@ -1222,7 +1426,11 @@ export default function Home() {
                                 aria-label={`Remove ${v.title} from library`}
                                 className="inline-flex text-slate-500 hover:text-rose-300 disabled:opacity-50"
                               >
-                                <Trash2 className="size-3.5" />
+                                {deletingVideoId === v.id ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="size-3.5" />
+                                )}
                               </button>
                             </div>
                           </td>
@@ -1248,6 +1456,7 @@ export default function Home() {
                                 loading={!!formatsLoading[v.id]}
                                 error={formatsError[v.id]}
                                 entries={entries}
+                                pending={pendingDownloads}
                                 onDownload={requestDownload}
                               />
                             </td>
@@ -1272,7 +1481,11 @@ export default function Home() {
                             aria-label={`Remove ${id} from library`}
                             className="inline-flex text-slate-500 hover:text-rose-300 disabled:opacity-50"
                           >
-                            <Trash2 className="size-3.5" />
+                            {deletingVideoId === id ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="size-3.5" />
+                            )}
                           </button>
                         )}
                       </td>
@@ -1341,8 +1554,12 @@ export default function Home() {
               onClick={() => requestBatchDownload("video-best")}
               disabled={batchLoading}
             >
-              <Video className="size-3.5" />
-              Download best video
+              {batchLoading ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Video className="size-3.5" />
+              )}
+              {batchLoading ? "Starting…" : "Download best video"}
             </Button>
             <Button
               size="sm"
@@ -1350,8 +1567,12 @@ export default function Home() {
               onClick={() => requestBatchDownload("audio-best")}
               disabled={batchLoading}
             >
-              <Music className="size-3.5" />
-              Download best audio
+              {batchLoading ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Music className="size-3.5" />
+              )}
+              {batchLoading ? "Starting…" : "Download best audio"}
             </Button>
             <Button
               size="sm"
