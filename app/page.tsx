@@ -349,6 +349,7 @@ function applyFilters(
 
 export default function Home() {
   const [fileName, setFileName] = useState<string | null>(null);
+  const [mergeNote, setMergeNote] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const loadingRef = useRef(false);
   const [loading, setLoading] = useState(false);
@@ -646,19 +647,44 @@ export default function Home() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const file = fileRef.current?.files?.[0];
-    if (!file) {
+    const files = Array.from(fileRef.current?.files ?? []);
+    if (files.length === 0) {
       setError("Choose a CSV file first");
       return;
     }
-    const csv = await file.text();
-    await loadCsv(csv, file.name);
+    if (files.length === 1) {
+      const csv = await files[0].text();
+      await loadCsv(csv, files[0].name);
+      return;
+    }
+
+    // Multiple Takeout CSVs: server merges them into the library format,
+    // then the merged CSV goes through the normal load flow.
+    setMergeNote(null);
+    const body = new FormData();
+    files.forEach((file) => body.append("files", file));
+    try {
+      const res = await fetch("/api/library/merge", { method: "POST", body });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error ?? `Request failed (${res.status})`);
+        return;
+      }
+      const s = data.stats;
+      setMergeNote(
+        `Merged ${s.files} files — ${s.uniqueVideos} videos, ${s.duplicates} duplicates, ${s.invalid} skipped`,
+      );
+      await loadCsv(data.csv, data.name);
+    } catch {
+      setError("Something went wrong. Check your connection and try again.");
+    }
   }
 
   function clearSaved() {
     fetch("/api/library", { method: "DELETE" }).catch(() => {});
     setResult(null);
     setFileName(null);
+    setMergeNote(null);
     setFilters(DEFAULT_FILTERS);
     setError(null);
     setSelected(new Set());
@@ -786,13 +812,22 @@ export default function Home() {
         >
           <div className="sm:min-w-36">
             <p className="text-sm font-semibold text-slate-100">Load a library</p>
-            <p className="text-xs text-slate-500">One video ID per CSV row</p>
+            <p className="text-xs text-slate-500">One video ID per CSV row — or multiple Takeout CSVs</p>
           </div>
           <input
             ref={fileRef}
             type="file"
             accept=".csv,text/csv"
-            onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+            multiple
+            onChange={(e) => {
+              const list = e.target.files;
+              setFileName(
+                list && list.length > 1
+                  ? `${list.length} files selected`
+                  : (list?.[0]?.name ?? null),
+              );
+              setMergeNote(null);
+            }}
             className="block min-w-0 w-full cursor-pointer rounded-lg border border-dashed border-slate-700 bg-slate-950/40 p-1.5 text-xs text-slate-400 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-red-500 file:px-2.5 file:py-1.5 file:text-xs file:font-bold file:text-white hover:border-red-400/60 hover:file:bg-red-400"
           />
           <div className="flex items-center gap-2 sm:justify-end">
@@ -805,6 +840,9 @@ export default function Home() {
           </div>
           {fileName && (
             <p className="truncate text-xs text-slate-400 sm:col-start-2 sm:-mt-2">Loaded: {fileName}</p>
+          )}
+          {mergeNote && (
+            <p className="truncate text-xs text-emerald-300/90 sm:col-start-2 sm:-mt-2">{mergeNote}</p>
           )}
         </form>
 
