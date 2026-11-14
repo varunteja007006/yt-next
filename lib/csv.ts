@@ -53,7 +53,48 @@ export function parseCsv(text: string): CsvRow[] {
   return rows;
 }
 
-const VIDEO_ID_RE = /^[\w-]{11}$/;
+export const VIDEO_ID_RE = /^[\w-]{11}$/;
+
+// Quote only when the field would break the row: comma, quote or newline.
+// Same rule as the takeout merge so round-trips stay consistent.
+function csvField(value: string): string {
+  return /[,\r\n"]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+function csvLine(fields: string[]): string {
+  return fields.map(csvField).join(",");
+}
+
+// Drop every row whose video-id column matches videoId and re-serialize.
+// Header order comes from the first line; output keeps the trailing newline
+// (header-only when no rows remain). Returns the original string untouched
+// when nothing matched.
+export function removeVideoRows(
+  csv: string,
+  videoId: string,
+): { csv: string; removed: number } {
+  const lines = csv
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
+  if (lines.length < 2) return { csv, removed: 0 };
+
+  const header = splitCsvLine(lines[0]).map((h) => h.trim());
+  const idHeader = header.find(
+    (h) => h === "Video ID" || h === "VideoId" || h === "video_id",
+  );
+  if (!idHeader) return { csv, removed: 0 };
+
+  const rows = parseCsv(csv);
+  const kept = rows.filter((row) => row[idHeader] !== videoId);
+  const removed = rows.length - kept.length;
+  if (removed === 0) return { csv, removed: 0 };
+
+  const out = [
+    csvLine(header),
+    ...kept.map((row) => csvLine(header.map((h) => row[h] ?? ""))),
+  ];
+  return { csv: `${out.join("\n")}\n`, removed };
+}
 
 export function extractVideoIds(rows: CsvRow[]): {
   ids: string[];

@@ -26,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { VIDEO_ID_RE } from "@/lib/csv";
 import { resolveBestFormat } from "@/lib/best-format";
 import type { DownloadEntry, DownloadRegistry } from "@/lib/downloads";
 import type { VideoFormatInfo } from "@/lib/formats";
@@ -367,6 +368,7 @@ export default function Home() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batchLoading, setBatchLoading] = useState(false);
   const [removingKey, setRemovingKey] = useState<string | null>(null);
+  const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
   const [playing, setPlaying] = useState<{
     videoId: string;
     formatKey: string;
@@ -531,6 +533,44 @@ export default function Home() {
       // registry catches up via polling
     } finally {
       setRemovingKey(null);
+    }
+  }
+
+  async function deleteVideoRow(id: string) {
+    if (deletingVideoId) return;
+    setDeletingVideoId(id);
+    try {
+      const res = await fetch(
+        `/api/library/videos?id=${encodeURIComponent(id)}`,
+        { method: "DELETE" },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error ?? `Request failed (${res.status})`);
+        return;
+      }
+      setResult((prev) => {
+        if (!prev) return prev;
+        const hadVideo = prev.videos.some((v) => v.id === id);
+        const hadNotFound = prev.notFound.includes(id);
+        if (!hadVideo && !hadNotFound) return prev;
+        return {
+          ...prev,
+          videos: prev.videos.filter((v) => v.id !== id),
+          notFound: prev.notFound.filter((n) => n !== id),
+          uniqueIds: Math.max(0, prev.uniqueIds - 1),
+        };
+      });
+      setSelected((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    } catch {
+      setError("Something went wrong. Check your connection and try again.");
+    } finally {
+      setDeletingVideoId(null);
     }
   }
 
@@ -1131,15 +1171,27 @@ export default function Home() {
                               : "-"}
                           </td>
                           <td className="px-3 py-2">
-                            <a
-                              href={v.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="Open on YouTube"
-                              className="inline-flex text-slate-500 hover:text-slate-100"
-                            >
-                              <ExternalLink className="size-4" />
-                            </a>
+                            <div className="flex items-center gap-1.5">
+                              <a
+                                href={v.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Open on YouTube"
+                                className="inline-flex text-slate-500 hover:text-slate-100"
+                              >
+                                <ExternalLink className="size-4" />
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => deleteVideoRow(v.id)}
+                                disabled={deletingVideoId === v.id}
+                                title="Remove from library"
+                                aria-label={`Remove ${v.title} from library`}
+                                className="inline-flex text-slate-500 hover:text-rose-300 disabled:opacity-50"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </button>
+                            </div>
                           </td>
                           <td className="px-3 py-2">
                             <Button
@@ -1176,7 +1228,21 @@ export default function Home() {
                       <td className="px-3 py-2 text-amber-200">
                         Not found: <code>{id}</code>
                       </td>
-                      <td colSpan={5} />
+                      <td colSpan={6} />
+                      <td className="px-3 py-2">
+                        {VIDEO_ID_RE.test(id) && (
+                          <button
+                            type="button"
+                            onClick={() => deleteVideoRow(id)}
+                            disabled={deletingVideoId === id}
+                            title="Remove from library"
+                            aria-label={`Remove ${id} from library`}
+                            className="inline-flex text-slate-500 hover:text-rose-300 disabled:opacity-50"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
