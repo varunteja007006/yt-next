@@ -12,9 +12,13 @@
 | `setup-guide-2026-09-27.md`            |         100% |
 | `dedup-and-format-subtitle-2026-11-14.md` |        100% |
 | `sqlite-storage-2026-11-14.md`         |         100% |
+| `dead-code-cleanup-2026-11-14.md`      |         100% |
 | `multi-select-batch-download-2026-11-14.md` |      100% |
 | `play-and-redownload-2026-11-14.md` |              100% |
 | `navbar-font-size-controls-2026-11-14.md` |        100% |
+| `takeout-multi-file-merge-2026-11-14.md` |         90% |
+| `persist-font-scale-in-db-2026-11-14.md` |       100% |
+| `delete-library-row-2026-11-14.md` |             100% |
 
 ## My personal thoughts
 
