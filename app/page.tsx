@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { resolveBestFormat } from "@/lib/best-format";
+import type { DownloadEntry, DownloadRegistry } from "@/lib/downloads";
+import type { VideoFormatInfo } from "@/lib/formats";
 
 const STORAGE_KEY = "yt-next:upload";
 const FONT_SCALE_KEY = "yt-next:font-scale";
@@ -60,32 +62,6 @@ type ApiResult = {
   invalid: string[];
   uniqueIds: number;
 };
-
-type VideoFormatInfo = {
-  itag: string;
-  kind: "audio" | "video" | "muxed";
-  ext: string;
-  label: string;
-  height: number | null;
-  fps: number | null;
-  abr: number | null;
-  tbr: number | null;
-  sizeBytes: number | null;
-  approx: boolean;
-};
-
-type DownloadEntry = {
-  formatKey: string;
-  label: string;
-  status: "queued" | "in_progress" | "done" | "failed";
-  mode?: string;
-  itag?: string;
-  file?: string;
-  sizeBytes?: number;
-  error?: string;
-};
-
-type DownloadRegistry = Record<string, Record<string, DownloadEntry>>;
 
 function formatDuration(seconds: number | null): string {
   if (seconds === null) return "-";

@@ -24,7 +24,7 @@
 .DS_Store
 *.pem
 
-# metadata cache
+# legacy cache dir (read once for registry migration, never written)
 /.cache/
 
 # debug

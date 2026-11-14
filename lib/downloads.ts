@@ -329,10 +329,6 @@ export function getRegistry(): DownloadRegistry {
   return registry;
 }
 
-export async function initDownloads() {
-  await ensureRegistry();
-}
-
 export async function startDownload(opts: {
   videoId: string;
   mode: DownloadMode;

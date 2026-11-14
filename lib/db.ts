@@ -7,7 +7,7 @@ const DB_FILE = path.join(DATA_DIR, "yt-next.db");
 
 let db: DatabaseSync | null = null;
 
-export function getDb(): DatabaseSync {
+function getDb(): DatabaseSync {
   if (db) return db;
   fs.mkdirSync(DATA_DIR, { recursive: true });
   db = new DatabaseSync(DB_FILE);
@@ -42,7 +42,7 @@ export function getDb(): DatabaseSync {
   return db;
 }
 
-export type LibraryRecord = { name: string; csv: string; updatedAt: string };
+type LibraryRecord = { name: string; csv: string; updatedAt: string };
 
 export function getLibrary(): LibraryRecord | null {
   const row = getDb()
@@ -67,7 +67,7 @@ export function clearLibrary(): void {
   getDb().prepare("DELETE FROM library WHERE id = 1").run();
 }
 
-export type DownloadEntryRow = {
+type DownloadEntryRow = {
   video_id: string;
   format_key: string;
   label: string;
@@ -150,8 +150,4 @@ export function setCache(key: string, value: string, fetchedAt?: string): void {
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, fetched_at = excluded.fetched_at`
     )
     .run(key, value, at);
-}
-
-export function deleteCache(key: string): void {
-  getDb().prepare("DELETE FROM cache WHERE key = ?").run(key);
 }

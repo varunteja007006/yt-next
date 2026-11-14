@@ -3,7 +3,7 @@
 // (lib/downloads.ts) and the client (app/page.tsx) so both agree on which
 // registry entry (`itag-<itag>`) a best-mode download maps to.
 
-export type BestFormatCandidate = {
+type BestFormatCandidate = {
   itag: string;
   kind: "audio" | "video" | "muxed";
   ext: string;
@@ -12,7 +12,7 @@ export type BestFormatCandidate = {
   tbr: number | null;
 };
 
-export type BestMode = "audio-best" | "video-best";
+type BestMode = "audio-best" | "video-best";
 
 // Mirrors yt-dlp's selection closely enough for dedup purposes:
 // - audio-best (`bestaudio[ext=m4a]/bestaudio`): prefer m4a, highest abr.
