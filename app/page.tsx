@@ -36,6 +36,8 @@ const FONT_SCALE_MIN = 0.75;
 const FONT_SCALE_MAX = 1.5;
 const FONT_SCALE_STEP = 0.125;
 const FONT_SCALE_DEFAULT = 1;
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
+const PAGE_SIZE_DEFAULT = 50;
 
 function clampFontScale(value: number): number {
   const steps = Math.round(value / FONT_SCALE_STEP);
@@ -356,6 +358,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ApiResult | null>(null);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
   const [registry, setRegistry] = useState<DownloadRegistry>({});
   const [formatsByVideo, setFormatsByVideo] = useState<
     Record<string, VideoFormatInfo[]>
@@ -407,7 +411,31 @@ export default function Home() {
     [result, filters, downloadedIds],
   );
 
+  const totalItems = matchedVideos.length + matchedNotFound.length;
+  const pageCount = Math.max(1, Math.ceil(totalItems / pageSize));
+  // Clamp without an effect: the stored page may exceed pageCount when the
+  // list shrinks (e.g. a row deletion); the derived value is what's rendered.
+  const currentPage = Math.min(page, pageCount);
+  const { pageVideos, pageNotFound } = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    const videosUpTo = matchedVideos.length;
+    const sliceVideos = matchedVideos.slice(
+      Math.min(start, videosUpTo),
+      Math.min(end, videosUpTo),
+    );
+    const sliceNotFound =
+      end > videosUpTo
+        ? matchedNotFound.slice(
+            Math.max(0, start - videosUpTo),
+            end - videosUpTo,
+          )
+        : [];
+    return { pageVideos: sliceVideos, pageNotFound: sliceNotFound };
+  }, [matchedVideos, matchedNotFound, currentPage, pageSize]);
+
   function setFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
+    setPage(1);
     setFilters((f) => ({ ...f, [key]: value }));
   }
 
@@ -416,8 +444,8 @@ export default function Home() {
   }
 
   const allSelected =
-    matchedVideos.length > 0 && matchedVideos.every((v) => selected.has(v.id));
-  const someSelected = matchedVideos.some((v) => selected.has(v.id));
+    pageVideos.length > 0 && pageVideos.every((v) => selected.has(v.id));
+  const someSelected = pageVideos.some((v) => selected.has(v.id));
 
   useEffect(() => {
     if (headerCheckboxRef.current) {
@@ -438,9 +466,9 @@ export default function Home() {
     setSelected((prev) => {
       const next = new Set(prev);
       if (allSelected) {
-        matchedVideos.forEach((v) => next.delete(v.id));
+        pageVideos.forEach((v) => next.delete(v.id));
       } else {
-        matchedVideos.forEach((v) => next.add(v.id));
+        pageVideos.forEach((v) => next.add(v.id));
       }
       return next;
     });
@@ -664,6 +692,7 @@ export default function Home() {
         if (!silent) setError(data?.error ?? `Request failed (${res.status})`);
       } else {
         setResult(data as ApiResult);
+        setPage(1);
         if (persist) {
           try {
             await fetch("/api/library", {
@@ -723,6 +752,7 @@ export default function Home() {
   function clearSaved() {
     fetch("/api/library", { method: "DELETE" }).catch(() => {});
     setResult(null);
+    setPage(1);
     setFileName(null);
     setMergeNote(null);
     setFilters(DEFAULT_FILTERS);
@@ -957,14 +987,17 @@ export default function Home() {
                   </select>
                   <label className="flex h-8 items-center gap-1.5 text-xs text-slate-400"><input type="checkbox" checked={filters.musicOnly} onChange={(e) => setFilter("musicOnly", e.target.checked)} className="size-3.5 accent-red-500" />Music only</label>
                   <label className="flex h-8 items-center gap-1.5 text-xs text-slate-400"><input type="checkbox" checked={filters.downloadedOnly} onChange={(e) => setFilter("downloadedOnly", e.target.checked)} className="size-3.5 accent-red-500" />Downloaded <span className="text-slate-500">({downloadedIds.size})</span></label>
-                  {isFiltered() && <Button size="sm" variant="ghost" onClick={() => setFilters(DEFAULT_FILTERS)}>Clear</Button>}
+                  {isFiltered() && <Button size="sm" variant="ghost" onClick={() => { setPage(1); setFilters(DEFAULT_FILTERS); }}>Clear</Button>}
                 </div>
               </details>
             </div>
 
             <p className="mt-3 text-xs font-medium uppercase tracking-wide text-slate-500">
-              Showing {matchedVideos.length + matchedNotFound.length} of{" "}
-              {result.videos.length + result.notFound.length}
+              {totalItems === 0
+                ? "Showing 0"
+                : `Showing ${((currentPage - 1) * pageSize + 1).toLocaleString()}–${Math.min(currentPage * pageSize, totalItems).toLocaleString()} of ${totalItems.toLocaleString()}`}
+              {isFiltered() &&
+                ` (${(result.videos.length + result.notFound.length).toLocaleString()} loaded)`}
             </p>
 
             <div className="responsive-table mt-2 overflow-hidden rounded-xl border border-slate-800 bg-[#1b1015] shadow-xl shadow-black/10">
@@ -991,7 +1024,7 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 bg-[#1b1015]">
-                  {matchedVideos.map((v) => {
+                  {pageVideos.map((v) => {
                     const entries = registry[v.id] ?? {};
                     const allEntries = Object.values(entries);
                     const doneEntries = allEntries.filter(
@@ -1223,7 +1256,7 @@ export default function Home() {
                       </Fragment>
                     );
                   })}
-                  {matchedNotFound.map((id) => (
+                  {pageNotFound.map((id) => (
                     <tr key={id} className="bg-amber-400/10">
                       <td className="px-3 py-2 text-amber-200">
                         Not found: <code>{id}</code>
@@ -1248,6 +1281,53 @@ export default function Home() {
                 </tbody>
               </table>
             </div>
+
+            {(pageCount > 1 || totalItems > PAGE_SIZE_OPTIONS[0]) && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {pageCount > 1 && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage <= 1}
+                    >
+                      Prev
+                    </Button>
+                    <span className="text-xs text-slate-400">
+                      Page {currentPage.toLocaleString()} of {pageCount.toLocaleString()}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                      disabled={currentPage >= pageCount}
+                    >
+                      Next
+                    </Button>
+                  </>
+                )}
+                {totalItems > PAGE_SIZE_OPTIONS[0] && (
+                  <label className="ml-auto flex items-center gap-1.5 text-xs text-slate-400">
+                    Rows per page
+                    <select
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setPage(1);
+                      }}
+                      className="h-8 rounded-lg border border-slate-700 bg-slate-950/70 px-2 text-xs text-slate-100 outline-none focus:border-red-500"
+                    >
+                      {PAGE_SIZE_OPTIONS.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </div>
+            )}
           </section>
         )}
 

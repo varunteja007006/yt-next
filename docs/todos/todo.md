@@ -19,6 +19,7 @@
 | `takeout-multi-file-merge-2026-11-14.md` |         90% |
 | `persist-font-scale-in-db-2026-11-14.md` |       100% |
 | `delete-library-row-2026-11-14.md` |             100% |
+| `table-pagination-2026-11-14.md` |                 100% |
 
 ## My personal thoughts
 
