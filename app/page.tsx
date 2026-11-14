@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import {
+  Check,
   ChevronDown,
   Download,
   ExternalLink,
@@ -17,6 +18,7 @@ import {
   Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { resolveBestFormat } from "@/lib/best-format";
 
 const STORAGE_KEY = "yt-next:upload";
 
@@ -47,6 +49,7 @@ type VideoFormatInfo = {
   label: string;
   height: number | null;
   fps: number | null;
+  abr: number | null;
   tbr: number | null;
   sizeBytes: number | null;
   approx: boolean;
@@ -122,6 +125,21 @@ function FormatPanel({
     (f) => f.kind !== "audio" && (f.height ?? 0) > 0,
   );
 
+  // Best-mode requests are registered server-side under the resolved itag
+  // key, so look the entry up the same way (falling back to the legacy
+  // mode-named key while formats are unknown or resolution failed).
+  const bestEntry = (
+    mode: "video-best" | "audio-best",
+  ): DownloadEntry | undefined => {
+    if (formats) {
+      const resolved = resolveBestFormat(mode, formats);
+      if (resolved) return entries[formatKeyFor(resolved.itag)] ?? entries[mode];
+    }
+    return entries[mode];
+  };
+  const bestVideoEntry = bestEntry("video-best");
+  const bestAudioEntry = bestEntry("audio-best");
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -136,14 +154,14 @@ function FormatPanel({
             )
           }
           disabled={
-            entries["video-best"]?.status === "done" ||
-            entries["video-best"]?.status === "in_progress"
+            bestVideoEntry?.status === "done" ||
+            bestVideoEntry?.status === "in_progress"
           }
         >
           <Download className="size-3.5" />
-          {entries["video-best"]?.status === "done"
-            ? `Video ✓ ${formatSize(entries["video-best"].sizeBytes ?? null, false)}`
-            : entries["video-best"]
+          {bestVideoEntry?.status === "done"
+            ? `Video ✓ ${formatSize(bestVideoEntry.sizeBytes ?? null, false)}`
+            : bestVideoEntry
               ? "Downloading…"
               : "Best video (max)"}
         </Button>
@@ -154,14 +172,14 @@ function FormatPanel({
             onDownload(video.id, "audio-best", undefined, "Best audio")
           }
           disabled={
-            entries["audio-best"]?.status === "done" ||
-            entries["audio-best"]?.status === "in_progress"
+            bestAudioEntry?.status === "done" ||
+            bestAudioEntry?.status === "in_progress"
           }
         >
           <Download className="size-3.5" />
-          {entries["audio-best"]?.status === "done"
-            ? `Audio ✓ ${formatSize(entries["audio-best"].sizeBytes ?? null, false)}`
-            : entries["audio-best"]
+          {bestAudioEntry?.status === "done"
+            ? `Audio ✓ ${formatSize(bestAudioEntry.sizeBytes ?? null, false)}`
+            : bestAudioEntry
               ? "Downloading…"
               : "Best audio"}
         </Button>
@@ -699,13 +717,14 @@ export default function Home() {
                 <tbody className="divide-y divide-slate-800 bg-[#1b1015]">
                   {matchedVideos.map((v) => {
                     const entries = registry[v.id] ?? {};
-                    const downloadedCount = Object.values(entries).filter(
+                    const allEntries = Object.values(entries);
+                    const doneEntries = allEntries.filter(
                       (e) => e.status === "done",
-                    ).length;
-                    const activeCount = Object.values(entries).filter(
+                    );
+                    const activeEntries = allEntries.filter(
                       (e) =>
                         e.status === "queued" || e.status === "in_progress",
-                    ).length;
+                    );
                     const isExpanded = expandedId === v.id;
                     return (
                       <Fragment key={v.id}>
@@ -731,7 +750,7 @@ export default function Home() {
                                    className="h-8 w-14 shrink-0 rounded object-cover"
                                 />
                               )}
-                               <span className="line-clamp-2 font-medium text-slate-100 group-hover:underline">
+                                <span className="line-clamp-2 font-medium text-slate-100 group-hover:underline">
                                 {v.title}
                                 {v.artist && (
                                   <span className="ml-2 text-xs font-normal text-slate-500">
@@ -741,6 +760,30 @@ export default function Home() {
                                 )}
                               </span>
                             </a>
+                            {(doneEntries.length > 0 ||
+                              activeEntries.length > 0) && (
+                              <div className="mt-1 flex flex-wrap items-center gap-1">
+                                {doneEntries.map((e) => (
+                                  <span
+                                    key={e.formatKey}
+                                    title={e.file}
+                                    className="inline-flex items-center gap-1 rounded bg-emerald-400/10 px-1.5 py-px text-[10px] text-emerald-300"
+                                  >
+                                    <Check className="size-2.5" />
+                                    {e.label}
+                                  </span>
+                                ))}
+                                {activeEntries.map((e) => (
+                                  <span
+                                    key={e.formatKey}
+                                    className="inline-flex items-center gap-0.5 rounded bg-slate-800/70 px-1.5 py-px text-[10px] text-slate-400"
+                                  >
+                                    <Download className="size-2.5 animate-pulse" />
+                                    {e.label}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </td>
                           <td className="hidden px-3 py-2 text-slate-400 lg:table-cell">
                             {v.channel || "-"}
@@ -777,12 +820,6 @@ export default function Home() {
                                 className={`size-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`}
                               />
                               Formats
-                              {downloadedCount > 0 && (
-                                <span className="ml-1 rounded-full bg-emerald-400/15 px-1.5 text-xs text-emerald-200">
-                                  {downloadedCount}
-                                  {activeCount > 0 ? ` +${activeCount}↓` : ""}
-                                </span>
-                              )}
                             </Button>
                           </td>
                         </tr>

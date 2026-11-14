@@ -2,6 +2,9 @@ import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { getFormats } from "./formats";
+import { resolveBestFormat } from "./best-format";
+
 export type DownloadStatus = "queued" | "in_progress" | "done" | "failed";
 
 export type DownloadEntry = {
@@ -259,9 +262,50 @@ export async function startDownload(opts: {
   label?: string;
 }): Promise<{ skipped?: boolean; entry: DownloadEntry }> {
   await ensureRegistry();
-  const { videoId, mode, itag } = opts;
-  const formatKey = formatKeyFor(mode, itag);
+  const { videoId } = opts;
+  let { mode, itag } = opts;
+  let formatKey = formatKeyFor(mode, itag);
   const label = opts.label ?? MODE_LABELS[mode];
+
+  // "Best" modes are resolved to the concrete itag yt-dlp would pick, so they
+  // share a registry entry (and dedup) with explicit itag downloads of the
+  // same stream instead of registering a duplicate under a mode-named key.
+  // If formats can't be resolved (fetch failure/empty), fall back to the old
+  // mode-named key rather than failing the request.
+  //
+  // Legacy entries stored under mode keys are NOT migrated at load time:
+  // retroactively matching their files to itags is ambiguous. They are left
+  // in place (pruneMissing/adoptOrphans tolerate them like any other entry)
+  // and are lazily re-keyed here when a later best-mode request resolves and
+  // nothing exists yet under the resolved itag key.
+  if (!itag && (mode === "video-best" || mode === "audio-best")) {
+    try {
+      const { formats } = await getFormats(videoId);
+      const resolved = resolveBestFormat(mode, formats);
+      if (resolved) {
+        const legacyKey = mode;
+        itag = resolved.itag;
+        mode =
+          mode === "audio-best"
+            ? "audio-itag"
+            : resolved.kind === "muxed"
+              ? "muxed-itag"
+              : "video-only-itag";
+        formatKey = formatKeyFor(mode, itag);
+        const legacy = registry[videoId]?.[legacyKey];
+        if (legacy && !registry[videoId]?.[formatKey]) {
+          delete registry[videoId][legacyKey];
+          registry[videoId] = {
+            ...registry[videoId],
+            [formatKey]: { ...legacy, formatKey },
+          };
+          saveRegistry();
+        }
+      }
+    } catch (error) {
+      console.log(`[downloads] best-mode resolution failed for ${videoId}:`, error);
+    }
+  }
 
   const existing = registry[videoId]?.[formatKey];
   if (existing?.status === "done" && existing.file) {
