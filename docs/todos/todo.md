@@ -22,6 +22,9 @@
 | `table-pagination-2026-11-14.md` |                 100% |
 | `row-loading-states-2026-11-14.md` |              100% |
 | `pagination-controls-above-table-2026-11-14.md` | 100% |
+| `download-queue-timeouts-fast-post-2026-11-14.md` | 100% |
+| `pagination-survives-refresh-2026-11-15.md` |       100% |
+| `zip-all-downloads-2026-11-15.md` |                 100% |
 
 ## My personal thoughts
 
