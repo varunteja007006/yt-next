@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import { getFormats, getFreshCachedFormats } from "./formats";
@@ -8,6 +9,8 @@ import {
   countDownloadEntries,
   deleteDownloadEntry,
   getAllDownloadEntries,
+  getSetting,
+  setSetting,
   upsertDownloadEntry,
 } from "./db";
 
@@ -520,37 +523,140 @@ export async function removeDownload(videoId: string, formatKey: string) {
 
 const ZIP_PATH = path.join(process.cwd(), "downloads-export.zip");
 
+export { ZIP_PATH };
+
+export type ZipExportMeta = {
+  files: string[];
+  count: number;
+  sizeBytes: number;
+  builtAt: string;
+};
+
+const ZIP_META_KEY = "zip_export";
+
+export function getZipExportMeta(): ZipExportMeta | null {
+  try {
+    return JSON.parse(getSetting(ZIP_META_KEY) ?? "null");
+  } catch {
+    return null;
+  }
+}
+
+// Deduped paths of every completed download currently on disk, in the shape
+// the zip builder consumes. Shared by the builder and the freshness check.
+export async function getDoneFiles(): Promise<Set<string>> {
+  await syncRegistry();
+  const set = new Set<string>();
+  for (const entries of Object.values(getRegistry())) {
+    for (const entry of Object.values(entries)) {
+      if (entry.status === "done" && entry.file) set.add(entry.file);
+    }
+  }
+  return set;
+}
+
+// Rebuilds the archive only when it is missing or out of date; metadata
+// matching the current downloads means the existing zip can be streamed as-is.
+export async function ensureFreshZip(): Promise<void> {
+  const current = await getDoneFiles();
+  if (current.size === 0) {
+    throw new Error("No completed downloads to zip");
+  }
+  let meta: ZipExportMeta | null = null;
+  try {
+    meta = JSON.parse(getSetting(ZIP_META_KEY) ?? "null");
+  } catch {
+    // Unreadable metadata → rebuild below.
+  }
+  const zipExists = await fs
+    .stat(ZIP_PATH)
+    .then(() => true, () => false);
+  const fresh =
+    zipExists &&
+    !!meta &&
+    Array.isArray(meta.files) &&
+    meta.files.length === current.size &&
+    meta.files.every((f) => current.has(f));
+  if (!fresh) {
+    await zipAllDownloads();
+  }
+}
+
 export async function zipAllDownloads(): Promise<{
   file: string;
   count: number;
   sizeBytes: number;
 }> {
-  await syncRegistry();
-  const files: string[] = [];
-  for (const entries of Object.values(getRegistry())) {
-    for (const entry of Object.values(entries)) {
-      if (entry.status === "done" && entry.file) files.push(entry.file);
-    }
-  }
-  if (files.length === 0) {
+  const filesSet = await getDoneFiles();
+  if (filesSet.size === 0) {
     throw new Error("No completed downloads to zip");
   }
+
+  // Flat archive (-j junk paths), since <videoId>/ folders are hard to browse
+  // after extraction. Titles can repeat across video folders, so colliding
+  // basenames get staged under "Title (videoId).ext" symlinks (zip follows
+  // symlinks by default and stores the target content).
+  const base = (f: string) => path.basename(f);
+  const counts = new Map<string, number>();
+  for (const f of filesSet) counts.set(base(f), (counts.get(base(f)) ?? 0) + 1);
+  const unique = [...filesSet].filter((f) => counts.get(base(f)) === 1);
+  const dupes = [...filesSet].filter((f) => counts.get(base(f))! > 1);
+
   // zip merges into existing archives, so start fresh each run.
   await fs.rm(ZIP_PATH, { force: true });
-  const rel = files.map((f) => path.relative(DOWNLOADS_DIR, f));
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn("zip", ["-q", "-X", ZIP_PATH, ...rel], {
-      cwd: DOWNLOADS_DIR,
-      stdio: ["ignore", "ignore", "pipe"],
+
+  const args = ["-q", "-X", "-j", ZIP_PATH, "--"];
+  args.push(...unique.map((f) => path.relative(DOWNLOADS_DIR, f)));
+
+  // Staging dir must stay alive until zip has read the symlinks, so cleanup
+  // happens after the spawn below, not when this block ends.
+  let stage: string | null = null;
+  if (dupes.length > 0) {
+    stage = await fs.mkdtemp(path.join(os.tmpdir(), "yt-next-zip-"));
+    const used = new Set<string>();
+    for (const f of dupes) {
+      const ext = path.extname(base(f));
+      const stem = base(f).slice(0, base(f).length - ext.length);
+      let name = base(f);
+      if (used.has(name)) {
+        const vid = path.basename(path.dirname(f));
+        name = `${stem} (${vid})${ext}`;
+      }
+      let n = 2;
+      while (used.has(name)) {
+        name = `${stem} (${n++})${ext}`;
+      }
+      used.add(name);
+      await fs.symlink(f, path.join(stage, name));
+      args.push(path.join(stage, name));
+    }
+  }
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      // "--" so paths starting with "-" (e.g. video id -XI2_610F0s/) aren't parsed as options.
+      const child = spawn("zip", args, {
+        cwd: DOWNLOADS_DIR,
+        stdio: ["ignore", "ignore", "pipe"],
+      });
+      let stderr = "";
+      child.stderr?.on("data", (chunk) => { stderr += chunk; });
+      child.on("error", reject);
+      child.on("close", (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`zip exited with ${code}: ${stderr.trim()}`));
+      });
     });
-    let stderr = "";
-    child.stderr?.on("data", (chunk) => { stderr += chunk; });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`zip exited with ${code}: ${stderr.trim()}`));
-    });
-  });
+  } finally {
+    if (stage) await fs.rm(stage, { recursive: true, force: true });
+  }
   const stat = await fs.stat(ZIP_PATH);
-  return { file: ZIP_PATH, count: files.length, sizeBytes: stat.size };
+  const meta: ZipExportMeta = {
+    files: [...filesSet],
+    count: filesSet.size,
+    sizeBytes: stat.size,
+    builtAt: new Date().toISOString(),
+  };
+  setSetting(ZIP_META_KEY, JSON.stringify(meta));
+  return { file: ZIP_PATH, count: filesSet.size, sizeBytes: stat.size };
 }

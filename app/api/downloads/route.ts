@@ -1,5 +1,6 @@
 import {
   getRegistry,
+  getZipExportMeta,
   removeDownload,
   startDownload,
   syncRegistry,
@@ -18,7 +19,7 @@ const MODES: DownloadMode[] = [
 
 export async function GET() {
   await syncRegistry();
-  return Response.json({ downloads: getRegistry() });
+  return Response.json({ downloads: getRegistry(), zipMeta: getZipExportMeta() });
 }
 
 export async function POST(request: Request) {
@@ -47,7 +48,11 @@ export async function POST(request: Request) {
   if (body.action === "zip") {
     try {
       const result = await zipAllDownloads();
-      return Response.json({ ...result, downloads: getRegistry() });
+      return Response.json({
+        ...result,
+        zipMeta: getZipExportMeta(),
+        downloads: getRegistry(),
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to create zip";

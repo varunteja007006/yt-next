@@ -465,6 +465,11 @@ export default function Home() {
   const [batchLoading, setBatchLoading] = useState(false);
   const [zipLoading, setZipLoading] = useState(false);
   const [zipNote, setZipNote] = useState<string | null>(null);
+  const [zipMeta, setZipMeta] = useState<{
+    count: number;
+    sizeBytes: number;
+    builtAt: string;
+  } | null>(null);
   const [pendingDownloads, setPendingDownloads] = useState<Set<string>>(
     new Set(),
   );
@@ -588,6 +593,7 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         setRegistry(data.downloads ?? {});
+        if (data.zipMeta) setZipMeta(data.zipMeta);
       }
     } catch {
       // ignore transient polling errors
@@ -798,9 +804,18 @@ export default function Home() {
       if (!res.ok) {
         setError(data?.error ?? `Request failed (${res.status})`);
       } else {
+        // The archive is built on disk; hand it to the browser so it saves to
+        // the user's Downloads folder no matter where the server runs.
+        const a = document.createElement("a");
+        a.href = "/api/downloads/zip";
+        a.download = "yt-next-downloads.zip";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
         setZipNote(
-          `Zipped ${data.count} file${data.count === 1 ? "" : "s"} → downloads-export.zip (${(data.sizeBytes / 1024 / 1024).toFixed(1)} MB)`,
+          `Zipped ${data.count} file${data.count === 1 ? "" : "s"} — download starting (${(data.sizeBytes / 1024 / 1024).toFixed(1)} MB)`,
         );
+        if (data.zipMeta) setZipMeta(data.zipMeta);
         if (data.downloads) setRegistry(data.downloads);
       }
     } catch {
@@ -1215,7 +1230,7 @@ export default function Home() {
                   variant="outline"
                   onClick={zipAllDownloads}
                   disabled={zipLoading}
-                  title="Zip all downloaded files to downloads-export.zip in the project root"
+                  title="Zip all downloaded files and save the archive via your browser"
                 >
                   {zipLoading ? (
                     <Loader2 className="size-3.5 animate-spin" />
@@ -1224,6 +1239,20 @@ export default function Home() {
                   )}
                   {zipLoading ? "Zipping…" : `Zip all (${downloadedCount})`}
                 </Button>
+              )}
+              {zipMeta && (
+                <span className="text-xs text-slate-500">
+                  Last export: {zipMeta.count.toLocaleString()} file
+                  {zipMeta.count === 1 ? "" : "s"} ·{" "}
+                  {zipMeta.sizeBytes >= 1e9
+                    ? `${(zipMeta.sizeBytes / 1024 ** 3).toFixed(2)} GB`
+                    : `${(zipMeta.sizeBytes / 1024 ** 2).toFixed(1)} MB`}{" "}
+                  ·{" "}
+                  {new Date(zipMeta.builtAt).toLocaleString(undefined, {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </span>
               )}
             </div>
 
