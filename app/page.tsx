@@ -39,11 +39,34 @@ const FONT_SCALE_STEP = 0.125;
 const FONT_SCALE_DEFAULT = 1;
 const PAGE_SIZE_OPTIONS = [25, 50, 100];
 const PAGE_SIZE_DEFAULT = 50;
+const PAGE_URL_PARAM = "page";
+const PAGE_SIZE_URL_PARAM = "pageSize";
 
 function clampFontScale(value: number): number {
   const steps = Math.round(value / FONT_SCALE_STEP);
   const snapped = steps * FONT_SCALE_STEP;
   return Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, snapped));
+}
+
+// Initial pagination state comes from the URL so a refresh (or a shared
+// link) reopens the library on the same page. On the server these fall back
+// to the defaults; the client hydrates with them too because `result` is
+// always null on first render, so the URL-derived values never change the
+// initial markup.
+function readUrlPage(): number {
+  if (typeof window === "undefined") return 1;
+  const value = Number(
+    new URLSearchParams(window.location.search).get(PAGE_URL_PARAM),
+  );
+  return Number.isInteger(value) && value >= 1 ? value : 1;
+}
+
+function readUrlPageSize(): number {
+  if (typeof window === "undefined") return PAGE_SIZE_DEFAULT;
+  const value = Number(
+    new URLSearchParams(window.location.search).get(PAGE_SIZE_URL_PARAM),
+  );
+  return PAGE_SIZE_OPTIONS.includes(value) ? value : PAGE_SIZE_DEFAULT;
 }
 
 type VideoMetadata = {
@@ -426,8 +449,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ApiResult | null>(null);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
+  const [page, setPage] = useState(readUrlPage);
+  const [pageSize, setPageSize] = useState(readUrlPageSize);
   const [registry, setRegistry] = useState<DownloadRegistry>({});
   const [formatsByVideo, setFormatsByVideo] = useState<
     Record<string, VideoFormatInfo[]>
@@ -917,6 +940,17 @@ export default function Home() {
       body: JSON.stringify({ fontScale }),
     }).catch(() => {});
   }, [fontScale]);
+
+  useEffect(() => {
+    // Mirror page/pageSize into the URL so pagination survives a refresh.
+    // Only written once data is loaded so an empty app doesn't grow a noisy
+    // query string.
+    if (!result) return;
+    const params = new URLSearchParams(window.location.search);
+    params.set(PAGE_URL_PARAM, String(currentPage));
+    params.set(PAGE_SIZE_URL_PARAM, String(pageSize));
+    window.history.replaceState(null, "", `?${params.toString()}`);
+  }, [result, currentPage, pageSize]);
 
   function changeFontScale(delta: number) {
     setFontScale((scale) => clampFontScale(scale + delta));
