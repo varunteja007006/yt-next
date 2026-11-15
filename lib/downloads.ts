@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { getFormats } from "./formats";
+import { getFormats, getFreshCachedFormats } from "./formats";
 import { resolveBestFormat } from "./best-format";
 import {
   countDownloadEntries,
@@ -43,6 +43,10 @@ const LEGACY_REGISTRY_FILE = path.join(process.cwd(), ".cache", "downloads.json"
 
 const registry: DownloadRegistry = {};
 let registryLoaded = false;
+
+// Backstop only — real downloads can legitimately take a long time; this
+// exists so a hung yt-dlp can't block the serial queue forever.
+const DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
 
 function entryToRow(videoId: string, entry: DownloadEntry) {
   return {
@@ -251,10 +255,18 @@ async function runYtDlp(args: string[]): Promise<string> {
     const child = spawn("yt-dlp", args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error(`yt-dlp timed out after ${DOWNLOAD_TIMEOUT_MS / 1000}s`));
+    }, DOWNLOAD_TIMEOUT_MS);
     child.stdout.on("data", (d) => (stdout += d));
     child.stderr.on("data", (d) => (stderr += d));
-    child.on("error", reject);
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
     child.on("close", (code) => {
+      clearTimeout(timer);
       if (code === 0) resolve(stdout);
       else reject(new Error(stderr.trim().split("\n").slice(-3).join(" | ") || `exit ${code}`));
     });
@@ -297,7 +309,18 @@ function ytDlpArgs(
 ): string[] {
   const url = `https://www.youtube.com/watch?v=${videoId}`;
   const out = path.join(DOWNLOADS_DIR, videoId, "%(title)s.%(ext)s");
-  const base = ["--no-playlist", "--no-overwrites", "-o", out];
+  const base = [
+    "--no-playlist",
+    "--no-overwrites",
+    "--js-runtimes",
+    "node",
+    "--socket-timeout",
+    "15",
+    "--retries",
+    "3",
+    "-o",
+    out,
+  ];
 
   switch (mode) {
     case "audio-best":
@@ -352,31 +375,37 @@ export async function startDownload(opts: {
   // in place (pruneMissing/adoptOrphans tolerate them like any other entry)
   // and are lazily re-keyed here when a later best-mode request resolves and
   // nothing exists yet under the resolved itag key.
+  // If formats are cached (fresh within TTL) resolution is an instant DB read,
+  // so do it here to dedup/legacy-rekey exactly as before. Otherwise leave the
+  // entry under the mode-named key and resolve inside the queue task below —
+  // resolving here would await a yt-dlp -J spawn and stall the POST response.
   if (!itag && (mode === "video-best" || mode === "audio-best")) {
-    try {
-      const { formats } = await getFormats(videoId);
-      const resolved = resolveBestFormat(mode, formats);
-      if (resolved) {
-        const legacyKey = mode;
-        itag = resolved.itag;
-        mode =
-          mode === "audio-best"
-            ? "audio-itag"
-            : resolved.kind === "muxed"
-              ? "muxed-itag"
-              : "video-only-itag";
-        formatKey = formatKeyFor(mode, itag);
-        const legacy = registry[videoId]?.[legacyKey];
-        if (legacy && !registry[videoId]?.[formatKey]) {
-          delete registry[videoId][legacyKey];
-          deleteDownloadEntry(videoId, legacyKey);
-          const rekeyed = { ...legacy, formatKey };
-          registry[videoId] = { ...registry[videoId], [formatKey]: rekeyed };
-          persistEntry(videoId, rekeyed);
+    const cachedFormats = getFreshCachedFormats(videoId);
+    if (cachedFormats) {
+      try {
+        const resolved = resolveBestFormat(mode, cachedFormats);
+        if (resolved) {
+          const legacyKey = mode;
+          itag = resolved.itag;
+          mode =
+            mode === "audio-best"
+              ? "audio-itag"
+              : resolved.kind === "muxed"
+                ? "muxed-itag"
+                : "video-only-itag";
+          formatKey = formatKeyFor(mode, itag);
+          const legacy = registry[videoId]?.[legacyKey];
+          if (legacy && !registry[videoId]?.[formatKey]) {
+            delete registry[videoId][legacyKey];
+            deleteDownloadEntry(videoId, legacyKey);
+            const rekeyed = { ...legacy, formatKey };
+            registry[videoId] = { ...registry[videoId], [formatKey]: rekeyed };
+            persistEntry(videoId, rekeyed);
+          }
         }
+      } catch (error) {
+        console.log(`[downloads] best-mode resolution failed for ${videoId}:`, error);
       }
-    } catch (error) {
-      console.log(`[downloads] best-mode resolution failed for ${videoId}:`, error);
     }
   }
 
@@ -403,12 +432,50 @@ export async function startDownload(opts: {
   persistEntry(videoId, entry);
 
   queue.push(async () => {
-    const current = registry[videoId]?.[formatKey];
+    let current = registry[videoId]?.[formatKey];
     if (!current || current.status === "done") return;
     current.status = "in_progress";
     persistEntry(videoId, current);
 
     try {
+      // Best modes enqueued without cached formats resolve their itag here,
+      // inside the queue, so the POST request never waits on a yt-dlp -J
+      // spawn. Same re-keying/dedup rules as the synchronous path above.
+      if (!itag && (mode === "video-best" || mode === "audio-best")) {
+        try {
+          const { formats } = await getFormats(videoId);
+          const resolved = resolveBestFormat(mode, formats);
+          if (resolved) {
+            const nextMode =
+              mode === "audio-best"
+                ? "audio-itag"
+                : resolved.kind === "muxed"
+                  ? "muxed-itag"
+                  : "video-only-itag";
+            const nextKey = formatKeyFor(nextMode, resolved.itag);
+            const existing = registry[videoId]?.[nextKey];
+            if (existing?.status === "done" && existing.file) {
+              // Already downloaded under the resolved itag — drop the
+              // mode-key entry instead of re-downloading.
+              delete registry[videoId][formatKey];
+              deleteDownloadEntry(videoId, formatKey);
+              return;
+            }
+            delete registry[videoId][formatKey];
+            deleteDownloadEntry(videoId, formatKey);
+            mode = nextMode;
+            itag = resolved.itag;
+            formatKey = nextKey;
+            current = { ...current, formatKey, mode, itag };
+            registry[videoId] = { ...registry[videoId], [formatKey]: current };
+            persistEntry(videoId, current);
+          }
+        } catch (error) {
+          console.log(`[downloads] best-mode resolution failed for ${videoId}:`, error);
+          // Fall back to downloading under the mode-named key.
+        }
+      }
+
       await fs.mkdir(path.join(DOWNLOADS_DIR, videoId), { recursive: true });
       const before = (await latestFileIn(path.join(DOWNLOADS_DIR, videoId))) ?? "";
       console.log(`[downloads] start ${videoId} ${formatKey}`);
