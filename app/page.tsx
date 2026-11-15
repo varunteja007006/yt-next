@@ -11,6 +11,7 @@ import {
 import {
   AArrowDown,
   AArrowUp,
+  Archive,
   Check,
   ChevronDown,
   Download,
@@ -462,6 +463,8 @@ export default function Home() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batchLoading, setBatchLoading] = useState(false);
+  const [zipLoading, setZipLoading] = useState(false);
+  const [zipNote, setZipNote] = useState<string | null>(null);
   const [pendingDownloads, setPendingDownloads] = useState<Set<string>>(
     new Set(),
   );
@@ -494,6 +497,16 @@ export default function Home() {
             Object.values(entries).some((e) => e.status === "done"),
           )
           .map(([id]) => id),
+      ),
+    [registry],
+  );
+
+  const downloadedCount = useMemo(
+    () =>
+      Object.values(registry).reduce(
+        (sum, entries) =>
+          sum + Object.values(entries).filter((e) => e.status === "done").length,
+        0,
       ),
     [registry],
   );
@@ -768,6 +781,32 @@ export default function Home() {
       setError("Something went wrong. Check your connection and try again.");
     } finally {
       setBatchLoading(false);
+    }
+  }
+
+  async function zipAllDownloads() {
+    if (zipLoading) return;
+    setZipLoading(true);
+    setZipNote(null);
+    try {
+      const res = await fetch("/api/downloads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "zip" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error ?? `Request failed (${res.status})`);
+      } else {
+        setZipNote(
+          `Zipped ${data.count} file${data.count === 1 ? "" : "s"} → downloads-export.zip (${(data.sizeBytes / 1024 / 1024).toFixed(1)} MB)`,
+        );
+        if (data.downloads) setRegistry(data.downloads);
+      }
+    } catch {
+      setError("Something went wrong. Check your connection and try again.");
+    } finally {
+      setZipLoading(false);
     }
   }
 
@@ -1170,8 +1209,27 @@ export default function Home() {
                   {isFiltered() && <Button size="sm" variant="ghost" onClick={() => { setPage(1); setFilters(DEFAULT_FILTERS); }}>Clear</Button>}
                 </div>
               </details>
+              {downloadedCount > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={zipAllDownloads}
+                  disabled={zipLoading}
+                  title="Zip all downloaded files to downloads-export.zip in the project root"
+                >
+                  {zipLoading ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Archive className="size-3.5" />
+                  )}
+                  {zipLoading ? "Zipping…" : `Zip all (${downloadedCount})`}
+                </Button>
+              )}
             </div>
 
+            {zipNote && (
+              <p className="mt-2 text-xs text-emerald-300/90">{zipNote}</p>
+            )}
             <p className="mt-3 text-xs font-medium uppercase tracking-wide text-slate-500">
               {totalItems === 0
                 ? "Showing 0"

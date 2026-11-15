@@ -3,6 +3,7 @@ import {
   removeDownload,
   startDownload,
   syncRegistry,
+  zipAllDownloads,
   type DownloadEntry,
   type DownloadMode,
 } from "@/lib/downloads";
@@ -42,6 +43,17 @@ export async function POST(request: Request) {
   }
 
   await syncRegistry();
+
+  if (body.action === "zip") {
+    try {
+      const result = await zipAllDownloads();
+      return Response.json({ ...result, downloads: getRegistry() });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to create zip";
+      return Response.json({ error: message }, { status: 400 });
+    }
+  }
 
   if (body.action === "remove") {
     if (!body.videoId || !body.formatKey) {

@@ -45,6 +45,7 @@ next-env.d.ts
 
 # downloaded media
 /downloads/
+/downloads-export.zip
 
 # sqlite database
 /data/

@@ -517,3 +517,40 @@ export async function removeDownload(videoId: string, formatKey: string) {
   }
   deleteDownloadEntry(videoId, formatKey);
 }
+
+const ZIP_PATH = path.join(process.cwd(), "downloads-export.zip");
+
+export async function zipAllDownloads(): Promise<{
+  file: string;
+  count: number;
+  sizeBytes: number;
+}> {
+  await syncRegistry();
+  const files: string[] = [];
+  for (const entries of Object.values(getRegistry())) {
+    for (const entry of Object.values(entries)) {
+      if (entry.status === "done" && entry.file) files.push(entry.file);
+    }
+  }
+  if (files.length === 0) {
+    throw new Error("No completed downloads to zip");
+  }
+  // zip merges into existing archives, so start fresh each run.
+  await fs.rm(ZIP_PATH, { force: true });
+  const rel = files.map((f) => path.relative(DOWNLOADS_DIR, f));
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn("zip", ["-q", "-X", ZIP_PATH, ...rel], {
+      cwd: DOWNLOADS_DIR,
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let stderr = "";
+    child.stderr?.on("data", (chunk) => { stderr += chunk; });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`zip exited with ${code}: ${stderr.trim()}`));
+    });
+  });
+  const stat = await fs.stat(ZIP_PATH);
+  return { file: ZIP_PATH, count: files.length, sizeBytes: stat.size };
+}
